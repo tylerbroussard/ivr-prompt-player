@@ -83,27 +83,22 @@ def main():
         # Display statistics
         st.metric("Prompts in Selected Campaign", len(campaign_prompts))
         
+        # Display associated campaigns
+        st.markdown("### Campaign Details")
+        st.markdown(f"**Selected Campaign:** {selected_campaign}")
+        
         # Display prompts with audio players
         st.markdown("### Campaign Prompts")
         
         for idx, row in campaign_prompts.iterrows():
             prompt_name = row['Prompt Name']
-            
             with st.expander(prompt_name, expanded=True):
-                cols = st.columns([3, 1])
-                
-                with cols[0]:
-                    st.markdown("**Campaigns:**")
-                    for campaign in row['Associated Campaigns']:
-                        st.markdown(f"• {campaign.strip()}")
-                
-                with cols[1]:
-                    audio_path = get_audio_path(prompt_name)
-                    if os.path.exists(audio_path):
-                        create_audio_player(prompt_name)
-                    else:
-                        st.warning("⚠️ Audio not found")
-                        st.text(f"Looking for: {os.path.basename(audio_path)}")
+                audio_path = get_audio_path(prompt_name)
+                if os.path.exists(audio_path):
+                    create_audio_player(prompt_name)
+                else:
+                    st.warning("⚠️ Audio not found")
+                    st.text(f"Looking for: {os.path.basename(audio_path)}")
 
 if __name__ == "__main__":
     main()
