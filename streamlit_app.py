@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import os
 import xml.etree.ElementTree as ET
-import graphviz
 from pathlib import Path
 
 def parse_ivr_flow(xml_content):
@@ -32,7 +31,10 @@ def parse_ivr_flow(xml_content):
                 module_data['prompt'] = prompt_name
                 if prompt_name not in prompt_locations:
                     prompt_locations[prompt_name] = []
-                prompt_locations[prompt_name].append(module_data['name'])
+                prompt_locations[prompt_name].append({
+                    'module_name': module_data['name'],
+                    'module_type': module_data['type']
+                })
             
             # Store module
             modules[module_id.text] = module_data
@@ -43,25 +45,6 @@ def parse_ivr_flow(xml_content):
                     modules[module_id.text]['descendants'].append(descendant.text)
 
     return modules, prompt_locations
-
-def create_flow_diagram(modules, highlighted_modules=None):
-    """Create a Graphviz diagram for the IVR flow"""
-    if highlighted_modules is None:
-        highlighted_modules = []
-        
-    dot = graphviz.Digraph()
-    dot.attr(rankdir='LR')  # Left to right layout
-    
-    # Add nodes
-    for module_id, module in modules.items():
-        node_color = '#ffff99' if module['name'] in highlighted_modules else '#ffffff'
-        dot.node(module_id, module['name'], style='filled', fillcolor=node_color)
-        
-        # Add connections
-        for descendant in module['descendants']:
-            dot.edge(module_id, descendant)
-    
-    return dot
 
 def get_audio_path(prompt_name, audio_dir):
     """Get the path for an audio file"""
@@ -87,6 +70,27 @@ def create_audio_player(prompt_name, audio_dir):
             audio_bytes = audio_file.read()
         return st.audio(audio_bytes, format='audio/wav')
     return None
+
+def display_flow_path(modules, module_id, visited=None, depth=0):
+    """Display the flow path in a hierarchical structure"""
+    if visited is None:
+        visited = set()
+    
+    if module_id in visited or depth > 10:  # Prevent infinite loops
+        return ""
+    
+    visited.add(module_id)
+    output = []
+    
+    if module_id in modules:
+        module = modules[module_id]
+        prefix = "  " * depth + "→ " if depth > 0 else ""
+        output.append(f"{prefix}{module['name']} ({module['type']})")
+        
+        for descendant in module['descendants']:
+            output.extend(display_flow_path(modules, descendant, visited, depth + 1))
+    
+    return output
 
 def main():
     st.set_page_config(page_title="IVR Prompt Flow Visualizer", layout="wide")
@@ -140,21 +144,26 @@ def main():
                     for idx, row in campaign_prompts.iterrows():
                         prompt_name = row['Prompt Name']
                         with st.expander(f"{prompt_name}", expanded=True):
-                            col1, col2 = st.columns([2, 1])
+                            cols = st.columns([3, 1])
                             
-                            with col1:
+                            with cols[0]:
                                 if prompt_name in prompt_locations:
-                                    st.markdown("**Used in modules:**")
+                                    st.markdown("#### Module Locations")
                                     for location in prompt_locations[prompt_name]:
-                                        st.markdown(f"- {location}")
-                                    
-                                    # Create and display flow diagram
-                                    dot = create_flow_diagram(modules, prompt_locations[prompt_name])
-                                    st.graphviz_chart(dot)
+                                        st.markdown(f"**{location['module_name']}** ({location['module_type']})")
+                                        
+                                        # Find and display the flow path for this module
+                                        for module_id, module in modules.items():
+                                            if module['name'] == location['module_name']:
+                                                st.markdown("**Flow Path:**")
+                                                flow_paths = display_flow_path(modules, module_id)
+                                                for path in flow_paths:
+                                                    st.text(path)
+                                                st.markdown("---")
                                 else:
                                     st.warning("Prompt not found in IVR flow")
                             
-                            with col2:
+                            with cols[1]:
                                 st.markdown("**Audio Preview:**")
                                 audio_preview = create_audio_player(prompt_name, audio_dir)
                                 if not audio_preview:
