@@ -1,0 +1,655 @@
+<?xml version="1.0" encoding="ISO-8859-1" standalone="yes"?>
+<ivrScript>
+    <domainId>127236</domainId>
+    <properties/>
+    <modules>
+        <incomingCall>
+            <singleDescendant>2895576BE73E404390BEE29A35B69EC5</singleDescendant>
+            <moduleName>IncomingCall4</moduleName>
+            <locationX>22</locationX>
+            <locationY>24</locationY>
+            <moduleId>2C51E567A2B74C8C8E0C8450FB81925D</moduleId>
+            <data/>
+        </incomingCall>
+        <recording>
+            <ascendants>2895576BE73E404390BEE29A35B69EC5</ascendants>
+            <exceptionalDescendant>AA116ECFE18D47CABC3D6FCD2DE20BA8</exceptionalDescendant>
+            <singleDescendant>CA42359AB97A4E11A2736D8E8760DA8E</singleDescendant>
+            <moduleName>Voice Recording</moduleName>
+            <locationX>202</locationX>
+            <locationY>40</locationY>
+            <moduleId>9527A8098F2A487593EC01528ED9D86C</moduleId>
+            <data>
+                <dispo>
+                    <id>300000000000011</id>
+                    <name>Voicemail - IB-US -Claims</name>
+                </dispo>
+                <vivrPrompts>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </vivrPrompts>
+                <vivrHeader>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </vivrHeader>
+                <textChannelData>
+                    <textPrompts>
+                        <interruptible>false</interruptible>
+                        <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                        <ttsEnumed>false</ttsEnumed>
+                        <exitModuleOnException>false</exitModuleOnException>
+                    </textPrompts>
+                    <isUsedVivrPrompts>true</isUsedVivrPrompts>
+                    <isTextOnly>true</isTextOnly>
+                </textChannelData>
+                <maxTime>120</maxTime>
+                <finalSilence>10000</finalSilence>
+                <DTMFtermination>true</DTMFtermination>
+                <throwExceptionIfMaxSilenceReached>true</throwExceptionIfMaxSilenceReached>
+                <maxAttempts>3</maxAttempts>
+                <prompts>
+                    <prompt>
+                        <ttsPrompt>
+                            <xml>H4sIAAAAAAAAAIVSy07DMBC89ytWPnCiNdwQOKmKBFcOUO7beJVG9SPyOlHz9zgBhSahwqf1zHpm
+H1bbszXQUuDKu0zcb+4EkCu8rlyZif3H6/pBAEd0Go13lImOWGzzleKa8PRiyJKL+QrSURhjqA5N
+JP4GBtCgK3eJ+IUG2KGlPFk/9rySw3WaMap9omnoGZmg7aNMkFvv34W8MJFTFyXnpagqkr0si7Hb
+8aT8pTHLGTMTGfFI5/in1v+aU+1r5MHrLn9zBUHnGwhU+KD7MIAlZizpFmpD/YjqkACIxxT5xmk4
+UQfRA2NLcIO2fgJNpkr7HnJ+Xm+UHByWncmrrSk5H6lcznRMSuTkv3wBgfzDAncCAAA=</xml>
+                            <promptTTSEnumed>false</promptTTSEnumed>
+                        </ttsPrompt>
+                        <interruptible>false</interruptible>
+                        <canChangeInterruptableOption>false</canChangeInterruptableOption>
+                        <ttsEnumed>false</ttsEnumed>
+                        <exitModuleOnException>false</exitModuleOnException>
+                    </prompt>
+                    <count>1</count>
+                </prompts>
+                <recoEvents>
+                    <event>NO_MATCH</event>
+                    <count>1</count>
+                    <compoundPrompt>
+                        <multiLanguagesPromptItem>
+                            <prompt>DD64981E8FB84E40A407C298324EA18F</prompt>
+                        </multiLanguagesPromptItem>
+                        <interruptible>false</interruptible>
+                        <canChangeInterruptableOption>false</canChangeInterruptableOption>
+                        <ttsEnumed>false</ttsEnumed>
+                        <exitModuleOnException>false</exitModuleOnException>
+                    </compoundPrompt>
+                    <action>REPROMPT</action>
+                </recoEvents>
+                <recoEvents>
+                    <event>NO_INPUT</event>
+                    <count>1</count>
+                    <compoundPrompt>
+                        <multiLanguagesPromptItem>
+                            <prompt>E927A7F4381E4B1199537A4CE5EBC44F</prompt>
+                        </multiLanguagesPromptItem>
+                        <interruptible>false</interruptible>
+                        <canChangeInterruptableOption>false</canChangeInterruptableOption>
+                        <ttsEnumed>false</ttsEnumed>
+                        <exitModuleOnException>false</exitModuleOnException>
+                    </compoundPrompt>
+                    <action>REPROMPT</action>
+                </recoEvents>
+                <confirmData>
+                    <confirmRequired>REQUIRED</confirmRequired>
+                    <requiredConfidence>75</requiredConfidence>
+                    <maxAttemptsToConfirm>3</maxAttemptsToConfirm>
+                    <noInputTimeout>3</noInputTimeout>
+                    <maxTimeToEnter>3</maxTimeToEnter>
+                    <completeTimeout>0</completeTimeout>
+                    <confidenceTreshold>75</confidenceTreshold>
+                    <sensitivity>0</sensitivity>
+                    <incompleteTimeout>0</incompleteTimeout>
+                    <swirecNbestListLength>0</swirecNbestListLength>
+                    <recognizeConfigParameters>
+                        <recognizeConfigParameter>NO_INPUT_TIMEOUT</recognizeConfigParameter>
+                        <recognizeConfigParameter>CONFIDENCE_TRESHOLD</recognizeConfigParameter>
+                        <recognizeConfigParameter>MAX_TIME_TO_ENTER</recognizeConfigParameter>
+                    </recognizeConfigParameters>
+                    <prompt>
+                        <ttsPrompt>
+                            <xml>H4sIAAAAAAAAAIWRQYvCMBCF7/6KkHs37k1KWlFY/4Drwh5HO5RgMpFOWuy/39iFalrFnJLvhfde
+Jnp9dVZ02LDxVMjPj6UUSCdfGaoLefjeZSspOABVYD1hIXtkuS4Xmi8I5y+LDimUCxGXhhAac2wD
+8j8YoAWqN1G4owETOCxjdH7TtRqO6Y3R7Qdsi1tgFN1tV0ik7LCX6iFEpSlaTatoE9A91mLoN5zU
+nwezmigTk5EHvIanXu89U+9X4tFXffnr20Y4ZIYaheE8PnPg8z7qZSGtpoNQ80mMl6KY/PIfXuWV
+0i0CAAA=</xml>
+                            <promptTTSEnumed>false</promptTTSEnumed>
+                        </ttsPrompt>
+                        <filePrompt>
+                            <promptData>
+                                <promptSelected>false</promptSelected>
+                                <isRecordedMessage>true</isRecordedMessage>
+                            </promptData>
+                        </filePrompt>
+                        <ttsPrompt>
+                            <xml>H4sIAAAAAAAAAIWSwU7DMBBE7/2K1Z6bmHJCyElVJPgBWu5uMwpREzvyulXz97hBhCahwid73mpm
+tLJeX5qazvBSOZvxKn1ggj24orJlxrvtW/LEJMHYwtTOIuMOwut8oaWFOb7WaGBDvqB4tAnBV/tT
+gHwLvVgbW24i+JV62ZoGeYx+vnKt+ud4YnD7MPUJL0ZA5+stY9hk987qJkSNU7SaVtFVQHNbS0y3
+kVH9ebCoCZmYDHrAJfzp9b/n2Pse3Luiy7eOjkBLVVhS6yFCvOKUouyReBycLyh8gpqITIkl/Uw9
+cqpVbzGvru5212q6MzVf2jAU4ehDfAG6V26PWAIAAA==</xml>
+                            <promptTTSEnumed>false</promptTTSEnumed>
+                        </ttsPrompt>
+                        <interruptible>true</interruptible>
+                        <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                        <ttsEnumed>false</ttsEnumed>
+                        <exitModuleOnException>false</exitModuleOnException>
+                    </prompt>
+                    <recoEvents>
+                        <event>NO_MATCH</event>
+                        <count>1</count>
+                        <compoundPrompt>
+                            <multiLanguagesPromptItem>
+                                <prompt>DD64981E8FB84E40A407C298324EA18F</prompt>
+                            </multiLanguagesPromptItem>
+                            <interruptible>false</interruptible>
+                            <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                            <ttsEnumed>false</ttsEnumed>
+                            <exitModuleOnException>false</exitModuleOnException>
+                        </compoundPrompt>
+                        <action>REPROMPT</action>
+                    </recoEvents>
+                    <recoEvents>
+                        <event>NO_INPUT</event>
+                        <count>1</count>
+                        <compoundPrompt>
+                            <multiLanguagesPromptItem>
+                                <prompt>E927A7F4381E4B1199537A4CE5EBC44F</prompt>
+                            </multiLanguagesPromptItem>
+                            <interruptible>false</interruptible>
+                            <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                            <ttsEnumed>false</ttsEnumed>
+                            <exitModuleOnException>false</exitModuleOnException>
+                        </compoundPrompt>
+                        <action>REPROMPT</action>
+                    </recoEvents>
+                </confirmData>
+                <recordingDuration/>
+                <terminationCharacter>
+                    <name>__BUFFER__</name>
+                </terminationCharacter>
+                <useRecordingAsGreeting>false</useRecordingAsGreeting>
+                <greetingUserExtension>
+                    <isVarSelected>true</isVarSelected>
+                    <variableName>__BUFFER__</variableName>
+                </greetingUserExtension>
+                <varToAccessRecording>
+                    <name>Caller_Speech</name>
+                </varToAccessRecording>
+                <collapsible>true</collapsible>
+            </data>
+        </recording>
+        <hangup>
+            <ascendants>AA116ECFE18D47CABC3D6FCD2DE20BA8</ascendants>
+            <moduleName>Hangup4</moduleName>
+            <locationX>830</locationX>
+            <locationY>94</locationY>
+            <moduleId>77BDAC90C6964B71BBE77FE710755B04</moduleId>
+            <data>
+                <dispo>
+                    <id>0</id>
+                    <name>No Disposition</name>
+                </dispo>
+                <returnToCallingModule>true</returnToCallingModule>
+                <errCode>
+                    <isVarSelected>false</isVarSelected>
+                    <integerValue>
+                        <value>0</value>
+                    </integerValue>
+                </errCode>
+                <errDescription>
+                    <isVarSelected>false</isVarSelected>
+                    <stringValue>
+                        <value></value>
+                        <id>0</id>
+                    </stringValue>
+                </errDescription>
+                <overwriteDisposition>true</overwriteDisposition>
+            </data>
+        </hangup>
+        <play>
+            <ascendants>7BC084486B8C4F15A9664297C722EF77</ascendants>
+            <ascendants>2895576BE73E404390BEE29A35B69EC5</ascendants>
+            <ascendants>CA42359AB97A4E11A2736D8E8760DA8E</ascendants>
+            <ascendants>9527A8098F2A487593EC01528ED9D86C</ascendants>
+            <singleDescendant>77BDAC90C6964B71BBE77FE710755B04</singleDescendant>
+            <moduleName>Play2</moduleName>
+            <locationX>555</locationX>
+            <locationY>60</locationY>
+            <moduleId>AA116ECFE18D47CABC3D6FCD2DE20BA8</moduleId>
+            <data>
+                <prompt>
+                    <ttsPrompt>
+                        <xml>H4sIAAAAAAAAAIVSwU7DMAy97yusnFkDN4TSTkOCGxLSNhBHj1pdtNRBcTotf09bpLK2TOTkvGe9
+9+zErM61gxMFsZ5zdZfdKiD+9KXlKle77fPyXoFE5BKdZ8pVIlGrYmHki/D45KgmjsUC2mMwxmD3
+TST5AXrQIVfrlviFepixpqK1fuh4o/vruGNQe0PX0CMKwamrckW83G2UvjDRYxejp1GMjVRfxhJM
+axnFnxuLnjATkQGPdI5/av2vOda+Ru59mYp3AgwEGx9CuoEP3wR4IRGsCKwA+wglOds+JZUZvDrq
+NhZDAqzQcgbbA/IRkm8yo3u9+Rz66iBGTxeo5xscmlpy9Du+Adx5P51lAgAA</xml>
+                        <promptTTSEnumed>false</promptTTSEnumed>
+                    </ttsPrompt>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </prompt>
+                <dispo>
+                    <id>300000000000011</id>
+                    <name>Voicemail - IB-US -Claims</name>
+                </dispo>
+                <vivrPrompts>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </vivrPrompts>
+                <vivrHeader>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </vivrHeader>
+                <textChannelData>
+                    <textPrompts>
+                        <interruptible>false</interruptible>
+                        <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                        <ttsEnumed>false</ttsEnumed>
+                        <exitModuleOnException>false</exitModuleOnException>
+                    </textPrompts>
+                    <isUsedVivrPrompts>true</isUsedVivrPrompts>
+                    <isTextOnly>true</isTextOnly>
+                </textChannelData>
+                <numberOfDigits>4</numberOfDigits>
+                <terminateDigit>#</terminateDigit>
+                <clearDigitBuffer>true</clearDigitBuffer>
+                <collapsible>true</collapsible>
+                <emailReplySubject>
+                    <vivrPrompt>
+                        <xml>H4sIAAAAAAAAAKVQywrCMBC8+xUhdxu9iWzTU70Koh+QtItE8oBkW9q/V9raqvTmnmZnmZlloOic
+ZS3GZILP+T7bcYa+CrXx95zfrqftgbNEytfKBo857zHxQm4ghkByw14Diiga3RAmMTGG0KURDzth
+R8u6Lpovg/iX1KHu5aU8MhADXLzFtzm0KhqlLZYWHfo/Y99m8uy8yVKjH1gRiJn+eGM1F8RUBYix
+sCfC27D5cAEAAA==</xml>
+                    </vivrPrompt>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </emailReplySubject>
+                <emailReplyBody>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </emailReplyBody>
+            </data>
+        </play>
+        <voiceMailTransfer>
+            <ascendants>CA42359AB97A4E11A2736D8E8760DA8E</ascendants>
+            <exceptionalDescendant>AA116ECFE18D47CABC3D6FCD2DE20BA8</exceptionalDescendant>
+            <moduleName>VoiceMailTransfer</moduleName>
+            <locationX>427</locationX>
+            <locationY>35</locationY>
+            <moduleId>7BC084486B8C4F15A9664297C722EF77</moduleId>
+            <data>
+                <dispo>
+                    <id>300000000000011</id>
+                    <name>Voicemail - IB-US -Claims</name>
+                </dispo>
+                <vmPersonalBox>
+                    <id>300000001574770</id>
+                    <name>csresolutiondepartment@bissell.com</name>
+                </vmPersonalBox>
+                <vmSkillBox/>
+                <isBoxDefinedInVariable>false</isBoxDefinedInVariable>
+                <vmBoxType>PERSONAL</vmBoxType>
+                <recordedFilesAction>CREATE_VOICEMAIL</recordedFilesAction>
+            </data>
+        </voiceMailTransfer>
+        <play>
+            <ascendants>9527A8098F2A487593EC01528ED9D86C</ascendants>
+            <exceptionalDescendant>AA116ECFE18D47CABC3D6FCD2DE20BA8</exceptionalDescendant>
+            <singleDescendant>7BC084486B8C4F15A9664297C722EF77</singleDescendant>
+            <moduleName>Confirmation Prompt</moduleName>
+            <locationX>307</locationX>
+            <locationY>41</locationY>
+            <moduleId>CA42359AB97A4E11A2736D8E8760DA8E</moduleId>
+            <data>
+                <prompt>
+                    <ttsPrompt>
+                        <xml>H4sIAAAAAAAAAIVSwU7DMAy97yus3NfADaG005DgthMbEkevMV20NJnqZFr+nqxIZW2ZyMl+z3nv
+yYlaXVoLZ+rYeFeKx+JBALnaa+OaUuy2b8snARzQabTeUSkSsVhVC8UnwuOrpZZcqBaQj8IQOrOP
+gfgH6EGLrlln4hfqYYctVdn6+cor2bfjiUHtA22kF2SC87UqBbnl7l3IGxM5dlFyGkWZQO1tLMa0
+5lH8uTHLCTMRGfBAl/Cn1v+aY+175N7rVOXi08cONsSMDYFh4FjXufuK1iYATdbklyRdAGwP6I6Q
+fCyU7G/PU8u7sZWcrkvO9zUMZXL0F74B2Ufk4VMCAAA=</xml>
+                        <promptTTSEnumed>false</promptTTSEnumed>
+                    </ttsPrompt>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </prompt>
+                <dispo>
+                    <id>300000000000011</id>
+                    <name>Voicemail - IB-US -Claims</name>
+                </dispo>
+                <vivrPrompts>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </vivrPrompts>
+                <vivrHeader>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </vivrHeader>
+                <textChannelData>
+                    <textPrompts>
+                        <interruptible>false</interruptible>
+                        <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                        <ttsEnumed>false</ttsEnumed>
+                        <exitModuleOnException>false</exitModuleOnException>
+                    </textPrompts>
+                    <isUsedVivrPrompts>true</isUsedVivrPrompts>
+                    <isTextOnly>true</isTextOnly>
+                </textChannelData>
+                <numberOfDigits>4</numberOfDigits>
+                <terminateDigit>#</terminateDigit>
+                <clearDigitBuffer>true</clearDigitBuffer>
+                <collapsible>true</collapsible>
+                <emailReplySubject>
+                    <vivrPrompt>
+                        <xml>H4sIAAAAAAAAAKVQywrCMBC8+xUhdxu9iWzTU70Koh+QtItE8oBkW9q/V9raqvTmnmZnmZlloOic
+ZS3GZILP+T7bcYa+CrXx95zfrqftgbNEytfKBo857zHxQm4ghkByw14Diiga3RAmMTGG0KURDzth
+R8u6Lpovg/iX1KHu5aU8MhADXLzFtzm0KhqlLZYWHfo/Y99m8uy8yVKjH1gRiJn+eGM1F8RUBYix
+sCfC27D5cAEAAA==</xml>
+                    </vivrPrompt>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </emailReplySubject>
+                <emailReplyBody>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </emailReplyBody>
+            </data>
+        </play>
+        <play>
+            <ascendants>2C51E567A2B74C8C8E0C8450FB81925D</ascendants>
+            <exceptionalDescendant>AA116ECFE18D47CABC3D6FCD2DE20BA8</exceptionalDescendant>
+            <singleDescendant>9527A8098F2A487593EC01528ED9D86C</singleDescendant>
+            <moduleName>Welcome Prompt</moduleName>
+            <locationX>119</locationX>
+            <locationY>160</locationY>
+            <moduleId>2895576BE73E404390BEE29A35B69EC5</moduleId>
+            <data>
+                <prompt>
+                    <ttsPrompt>
+                        <xml>H4sIAAAAAAAAANVUy07DMBC89ytWPnBqY7ghSIIKgjMSLZydZGms+hHZm9L8PXaKSpO24oQQuSSe
+Xc2sZtZJ77ZawQadl9Zk7Cq5ZICmtJU0q4wtF0+zawaehKmEsgYz1qFnd/kk9Q2K9aNCjYbyCYQn
+FUROFi2h3wE9qIRZzUPhG+phIzTmQfom1lPeH4cde7ZXoVq8Fx5hE78yhma2fGH8QIQfq/yJcMrH
+HqSSUB/64UU39wPfjoU9H1VGJHuccEsnuX7mHHKfKxa26vJFLcwaOtvCu3XwYA2JksJ+ANUIhfQe
+lQKH3qqWwhZBhY1wFIdKJinvKY5H52dnT/nYM37atP/o5bPCsFBTgPDeYDTVAcQlnEJThwsGptUF
+uimEGwelElJ/IXAhdHMLtVVV77uSoTnmEQ8mzA7SeHJt2UdANgRSWlftFDR6L1aYQJjsDeFD7gJr
+bBAJrTHaxlndEKougT5vH9HfSm/fFIqD/8gnjsHoCo8EAAA=</xml>
+                        <promptTTSEnumed>false</promptTTSEnumed>
+                    </ttsPrompt>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </prompt>
+                <dispo>
+                    <id>300000000000011</id>
+                    <name>Voicemail - IB-US -Claims</name>
+                </dispo>
+                <vivrPrompts>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </vivrPrompts>
+                <vivrHeader>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </vivrHeader>
+                <textChannelData>
+                    <textPrompts>
+                        <interruptible>false</interruptible>
+                        <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                        <ttsEnumed>false</ttsEnumed>
+                        <exitModuleOnException>false</exitModuleOnException>
+                    </textPrompts>
+                    <isUsedVivrPrompts>true</isUsedVivrPrompts>
+                    <isTextOnly>true</isTextOnly>
+                </textChannelData>
+                <numberOfDigits>4</numberOfDigits>
+                <terminateDigit>#</terminateDigit>
+                <clearDigitBuffer>true</clearDigitBuffer>
+                <collapsible>false</collapsible>
+                <emailReplySubject>
+                    <vivrPrompt>
+                        <xml>H4sIAAAAAAAAAKVQywrCMBC8+xUhdxu9iWzTU70Koh+QtItE8oBkW9q/V9raqvTmnmZnmZlloOic
+ZS3GZILP+T7bcYa+CrXx95zfrqftgbNEytfKBo857zHxQm4ghkByw14Diiga3RAmMTGG0KURDzth
+R8u6Lpovg/iX1KHu5aU8MhADXLzFtzm0KhqlLZYWHfo/Y99m8uy8yVKjH1gRiJn+eGM1F8RUBYix
+sCfC27D5cAEAAA==</xml>
+                    </vivrPrompt>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </emailReplySubject>
+                <emailReplyBody>
+                    <interruptible>false</interruptible>
+                    <canChangeInterruptableOption>true</canChangeInterruptableOption>
+                    <ttsEnumed>false</ttsEnumed>
+                    <exitModuleOnException>false</exitModuleOnException>
+                </emailReplyBody>
+            </data>
+        </play>
+    </modules>
+    <modulesOnHangup>
+        <startOnHangup>
+            <singleDescendant>9485D3C7A46A45A587D1EB32F30D57BA</singleDescendant>
+            <moduleName>StartOnHangup4</moduleName>
+            <locationX>20</locationX>
+            <locationY>10</locationY>
+            <moduleId>8089C56EA72140BB8B48D3444B1A1DC8</moduleId>
+        </startOnHangup>
+        <hangup>
+            <ascendants>8089C56EA72140BB8B48D3444B1A1DC8</ascendants>
+            <moduleName>Hangup5</moduleName>
+            <locationX>120</locationX>
+            <locationY>10</locationY>
+            <moduleId>9485D3C7A46A45A587D1EB32F30D57BA</moduleId>
+            <data>
+                <dispo>
+                    <id>-17</id>
+                    <name>Caller Disconnected</name>
+                </dispo>
+                <returnToCallingModule>true</returnToCallingModule>
+                <errCode>
+                    <isVarSelected>false</isVarSelected>
+                    <integerValue>
+                        <value>0</value>
+                    </integerValue>
+                </errCode>
+                <errDescription>
+                    <isVarSelected>false</isVarSelected>
+                    <stringValue>
+                        <value></value>
+                        <id>0</id>
+                    </stringValue>
+                </errDescription>
+                <overwriteDisposition>false</overwriteDisposition>
+            </data>
+        </hangup>
+    </modulesOnHangup>
+    <userVariables>
+        <entry>
+            <key>Caller_Speech</key>
+            <value>
+                <name>Caller_Speech</name>
+                <description>This is the caller speech.</description>
+                <stringValue>
+                    <value></value>
+                    <id>0</id>
+                </stringValue>
+                <attributes>8</attributes>
+                <isNullValue>true</isNullValue>
+            </value>
+        </entry>
+        <entry>
+            <key>Email Address</key>
+            <value>
+                <name>Email Address</name>
+                <description></description>
+                <stringValue>
+                    <value>pammy.singh@bissell.com</value>
+                    <id>0</id>
+                </stringValue>
+                <attributes>8</attributes>
+                <isNullValue>false</isNullValue>
+            </value>
+        </entry>
+        <entry>
+            <key>Terminating Key</key>
+            <value>
+                <name>Terminating Key</name>
+                <description></description>
+                <stringValue>
+                    <value>#</value>
+                    <id>0</id>
+                </stringValue>
+                <attributes>8</attributes>
+                <isNullValue>false</isNullValue>
+            </value>
+        </entry>
+    </userVariables>
+    <multiLanguagesPrompts>
+        <entry>
+            <key>7B87386D55B44C889CDADC4EF992E19C</key>
+            <value>
+                <promptId>7B87386D55B44C889CDADC4EF992E19C</promptId>
+                <name>ConfirmPromptWithoutVSR</name>
+                <description>Default prompt for user input confirmation with disabled voice recognition</description>
+                <type>AUDIO</type>
+                <prompts>
+                    <entry key="en-US">
+                        <ttsPrompt>
+                            <xml>H4sIAAAAAAAAANVT0UrDMBR931eEvK9xPslIOypMGAwVtyk+lbS9bsE0GUla17837bA23YYg+GDJ
+Q3PO5ZyTexM6OxQCVaANVzLEk+AKI5CZyrnchnizvhvfYGQskzkTSkKIazB4Fo2o2QN7nwsoQNpo
+hNxHmbWap6UFcwRaUDC5jR3xDbWwZAVEznra8JS0W7+iU3tmooRbZgBVzV+IQY43K0x6JsR3oWQY
+hXILRT+WYXVsvPinxoYMmIFIh1s42LNaP2v62pfIVOV19KpKNxoLGvKpO2KLnWYhF8NQMmwCOd8F
+WjHNWSrgV/0Zgl9i982Ik2T1skiWi/X8KV4mCSUe20t2McJ/nFyAHjUYg/AEI/6G7I4b5FamtIbM
+BujB7kB/cHfD98e6a/xX8+2KHOm94E/oteYzCQQAAA==</xml>
+                            <promptTTSEnumed>false</promptTTSEnumed>
+                        </ttsPrompt>
+                    </entry>
+                </prompts>
+                <defaultLanguage>en-US</defaultLanguage>
+                <isPersistent>true</isPersistent>
+            </value>
+        </entry>
+        <entry>
+            <key>DD64981E8FB84E40A407C298324EA18F</key>
+            <value>
+                <promptId>DD64981E8FB84E40A407C298324EA18F</promptId>
+                <name>NoMatchPrompt</name>
+                <description>Default prompt for NoMatch event</description>
+                <type>AUDIO</type>
+                <prompts>
+                    <entry key="en-US">
+                        <ttsPrompt>
+                            <xml>H4sIAAAAAAAAAIWRQYvCMBCF7/6KkLvO7k0krSis4Fnd+2gHCZtOpTMV++83VqimXdmcku+F9x4z
+bnkrg7lSLb7izH7OPqwhPlWF53NmD/vNdG6NKHKBoWLKbEtil/nEyYXw5ytQSaz5xMTjULX2x0ZJ
+HqCDAfm8isITdZixpDxGL+66g+6Z/ujdvjE0tEYhc73fMks8PewsvIRAmuJgWMV5pfK1lmC7kqT+
+OFhgoAxMeq500z+9/vdMvd+Jx6po821cS13TSY3nS6MzBx0e14G3fRwM5wDjQfSfopgs+RfRtLpi
+LAIAAA==</xml>
+                            <promptTTSEnumed>false</promptTTSEnumed>
+                        </ttsPrompt>
+                    </entry>
+                </prompts>
+                <defaultLanguage>en-US</defaultLanguage>
+                <isPersistent>true</isPersistent>
+            </value>
+        </entry>
+        <entry>
+            <key>E927A7F4381E4B1199537A4CE5EBC44F</key>
+            <value>
+                <promptId>E927A7F4381E4B1199537A4CE5EBC44F</promptId>
+                <name>NoInputPrompt</name>
+                <description>Default prompt for NoInput event</description>
+                <type>AUDIO</type>
+                <prompts>
+                    <entry key="en-US">
+                        <ttsPrompt>
+                            <xml>H4sIAAAAAAAAAIWRQYvCMBCF7/6KkHsdvS1LWnFhBc+7eh/toMV0Ip2p2H9vrVBNu7I5Je8b3ntM
+3OJaenOhSorAqZ1PZ9YQ70Ne8CG1m99V8mGNKHKOPjCltiGxi2zi5Ex4+vZUEms2Me1xqFoVu1pJ
+HkIneuTDsgVPqZMZS8ra6M87d9A944nebYu+pi8UMpf7LbXEyebHwksIxCkOhlVcoVS+1hJslhLV
+HwcLDMjApNeVrvqn1/+esfc7uAt5k63NHpmDmiNhZZpQTx10YFwI3jZyMNwEjFfRD7Uw+uYbQw31
+uC4CAAA=</xml>
+                            <promptTTSEnumed>false</promptTTSEnumed>
+                        </ttsPrompt>
+                    </entry>
+                </prompts>
+                <defaultLanguage>en-US</defaultLanguage>
+                <isPersistent>true</isPersistent>
+            </value>
+        </entry>
+        <entry>
+            <key>F83734E22E6448DCA5774D112F6EBACE</key>
+            <value>
+                <promptId>F83734E22E6448DCA5774D112F6EBACE</promptId>
+                <name>ConfirmPrompt</name>
+                <description>Default prompt for user input confirmation</description>
+                <type>AUDIO</type>
+                <prompts>
+                    <entry key="en-US">
+                        <ttsPrompt>
+                            <xml>H4sIAAAAAAAAANVTUWvCMBB+91ccebeZexqSVhw4EMTB1A2fSrQ3DWsTyaXO/vulHXNttQwGe1jI
+Q/J9ue++3CVidMpSOKIlZXTIBsENA9Rbkyi9C9lq+dC/Y0BO6kSmRmPICiQ2inqCDijfJilmqF3U
+Az+EdM6qTe6QPoEKTKXejT3xDVWwlhlGPvWw5AWvts0TZ7VnmeZ4LwnhWK5Chrq/WjBeS8KbWQRv
+WxHKYVa3RbIYU8P+ZWLiLaYlcsYdntxVrZ81m9pd5MYkRbQ2uW+NQ4vJ0F+xwi698E4zgreLwK9X
+QRylVXKT4q/q0wa/xOZli+N48TKNZ9Pl5Gk8i2PBG2zNWaeF/9i5ABayALb2XweMhYNFImADBuoV
+3F4R+Lk11uLWBfDo9mjflX/uVAbNTT3mlv1V48+HPNn42h9LoLssIgQAAA==</xml>
+                            <promptTTSEnumed>false</promptTTSEnumed>
+                        </ttsPrompt>
+                    </entry>
+                </prompts>
+                <defaultLanguage>en-US</defaultLanguage>
+                <isPersistent>true</isPersistent>
+            </value>
+        </entry>
+    </multiLanguagesPrompts>
+    <multiLanguagesVIVRPrompts/>
+    <multiLanguagesTextPrompts/>
+    <multiLanguagesMenuChoices/>
+    <multiLanguagesEwtAnnouncement/>
+    <languages/>
+    <functions/>
+    <defaultLanguage>en-US</defaultLanguage>
+    <defaultMethod>GET</defaultMethod>
+    <defaultFetchTimeout>5</defaultFetchTimeout>
+    <showLabelNames>true</showLabelNames>
+    <defaultVivrTimeout>5</defaultVivrTimeout>
+    <unicodeEncoding>false</unicodeEncoding>
+    <useShortcut>false</useShortcut>
+    <resetErrorCode>true</resetErrorCode>
+    <showAllChannelPrompts>true</showAllChannelPrompts>
+    <extContactFieldsInput>true</extContactFieldsInput>
+    <extContactFieldsOutput>true</extContactFieldsOutput>
+    <useIvrTimeZoneInAssignment>true</useIvrTimeZoneInAssignment>
+    <timeoutInMilliseconds>3600000</timeoutInMilliseconds>
+    <version>1200006</version>
+</ivrScript>
