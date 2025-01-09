@@ -6,21 +6,6 @@ from pathlib import Path
 import base64
 import re
 
-def list_ivr_files(ivr_dir):
-    """List all IVR files in the specified directory"""
-    if not os.path.exists(ivr_dir):
-        return []
-    return [f for f in os.listdir(ivr_dir) if f.endswith(('.five9ivr', '.xml'))]
-
-def load_ivr_content(ivr_path):
-    """Load IVR file content"""
-    try:
-        with open(ivr_path, 'r', encoding='utf-8') as file:
-            return file.read()
-    except Exception as e:
-        st.error(f"Error reading IVR file: {str(e)}")
-        return None
-
 def parse_ivr_flow(xml_content):
     """Parse IVR XML and extract flow information"""
     root = ET.fromstring(xml_content)
@@ -119,51 +104,29 @@ def main():
             value="./prompts",
             help="Directory containing prompt audio files (.wav format)"
         )
-        ivr_dir = st.text_input(
-            "IVR Directory Path",
-            value="./IVRs",
-            help="Directory containing IVR script files"
+    
+    # File uploaders
+    col1, col2 = st.columns(2)
+    with col1:
+        mapping_file = st.file_uploader(
+            "Upload Campaign-Prompt Mapping CSV",
+            type=['csv'],
+            help="CSV file with prompt mappings"
         )
-        
-        # Check directories
-        if st.button("Check Directories"):
-            col1, col2 = st.columns(2)
-            with col1:
-                if os.path.exists(audio_dir):
-                    audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.wav')]
-                    st.success(f"Found {len(audio_files)} audio files")
-                else:
-                    st.error("Audio directory not found!")
-            
-            with col2:
-                if os.path.exists(ivr_dir):
-                    ivr_files = list_ivr_files(ivr_dir)
-                    st.success(f"Found {len(ivr_files)} IVR files")
-                else:
-                    st.error("IVR directory not found!")
     
-    # File uploader for mapping file and IVR selector
-    mapping_file = st.file_uploader(
-        "Upload Campaign-Prompt Mapping CSV",
-        type=['csv'],
-        help="CSV file with prompt mappings"
-    )
+    with col2:
+        ivr_file = st.file_uploader(
+            "Upload IVR Script",
+            type=['five9ivr', 'xml'],
+            help="Five9 IVR script file"
+        )
     
-    # IVR file selector
-    ivr_files = list_ivr_files(ivr_dir)
-    if ivr_files:
-        selected_ivr = st.selectbox("Select IVR Script", ivr_files)
-        ivr_path = os.path.join(ivr_dir, selected_ivr)
-        ivr_content = load_ivr_content(ivr_path)
-    else:
-        st.warning("No IVR files found in the IVRs directory")
-        ivr_content = None
-    
-    if mapping_file and ivr_content:
+    if mapping_file and ivr_file:
         # Load mapping data
         df = pd.read_csv(mapping_file)
         
         # Parse IVR flow
+        ivr_content = ivr_file.read().decode('utf-8')
         modules, prompt_locations = parse_ivr_flow(ivr_content)
         
         # Get unique campaigns
