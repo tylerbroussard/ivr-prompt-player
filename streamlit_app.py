@@ -93,7 +93,9 @@ def main():
                 cols = st.columns([3, 1])
                 
                 with cols[0]:
-                    st.text("Campaigns: " + ", ".join(row['Associated Campaigns']))
+                    st.markdown("**Campaigns:**")
+                    for campaign in row['Associated Campaigns']:
+                        st.markdown(f"• {campaign.strip()}")
                 
                 with cols[1]:
                     audio_path = get_audio_path(prompt_name)
