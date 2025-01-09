@@ -110,15 +110,21 @@ def main():
             help="Directory containing IVR scripts"
         )
     
-    # Only show campaign selection
-    mapping_file = "prompt_campaign_mapping.csv"
-    if os.path.exists(mapping_file):
+    # File uploader for mapping CSV
+    mapping_file = st.file_uploader(
+        "Upload Campaign-Prompt Mapping CSV",
+        type=['csv'],
+        help="CSV file containing campaign to prompt mappings"
+    )
+    
+    if mapping_file:
         df = pd.read_csv(mapping_file)
         # Extract unique campaigns (handle comma-separated values)
         campaigns = sorted(set(campaign.strip() 
                              for campaigns in df['Associated Campaigns'].dropna() 
                              for campaign in campaigns.split(',')))
         
+        # Campaign selector
         selected_campaign = st.selectbox(
             "Select Campaign",
             campaigns,
@@ -126,55 +132,57 @@ def main():
         )
         
         # Find relevant IVR file
-        ivr_files = [f for f in os.listdir(ivr_dir) if f.endswith(('.five9ivr', '.xml'))]
-        
-        for ivr_file in ivr_files:
-            ivr_path = os.path.join(ivr_dir, ivr_file)
-            try:
-                with open(ivr_path, 'r', encoding='utf-8') as f:
-                    ivr_content = f.read()
-                    modules, prompt_locations = parse_ivr_flow(ivr_content)
-                    
-                    # Filter prompts for selected campaign
-                    campaign_prompts = df[df['Associated Campaigns'].str.contains(selected_campaign, na=False)]
-                    
-                    # Display prompts with flow visualization
-                    st.markdown(f"### Prompts in {selected_campaign}")
-                    
-                    for idx, row in campaign_prompts.iterrows():
-                        prompt_name = row['Prompt Name']
-                        with st.expander(f"{prompt_name}", expanded=True):
-                            cols = st.columns([3, 1])
+        if os.path.exists(ivr_dir):
+            ivr_files = [f for f in os.listdir(ivr_dir) if f.endswith(('.five9ivr', '.xml'))]
+            
+            for ivr_file in ivr_files:
+                ivr_path = os.path.join(ivr_dir, ivr_file)
+                try:
+                    with open(ivr_path, 'r', encoding='utf-8') as f:
+                        ivr_content = f.read()
+                        modules, prompt_locations = parse_ivr_flow(ivr_content)
+                        
+                        # Filter prompts for selected campaign
+                        campaign_prompts = df[df['Associated Campaigns'].str.contains(selected_campaign, na=False)]
+                        
+                        if not campaign_prompts.empty:
+                            # Display prompts with flow visualization
+                            st.markdown(f"### Prompts in {selected_campaign}")
                             
-                            with cols[0]:
-                                if prompt_name in prompt_locations:
-                                    st.markdown("#### Module Locations")
-                                    for location in prompt_locations[prompt_name]:
-                                        st.markdown(f"**{location['module_name']}** ({location['module_type']})")
-                                        
-                                        # Find and display the flow path for this module
-                                        for module_id, module in modules.items():
-                                            if module['name'] == location['module_name']:
-                                                st.markdown("**Flow Path:**")
-                                                flow_paths = display_flow_path(modules, module_id)
-                                                for path in flow_paths:
-                                                    st.text(path)
-                                                st.markdown("---")
-                                else:
-                                    st.warning("Prompt not found in IVR flow")
-                            
-                            with cols[1]:
-                                st.markdown("**Audio Preview:**")
-                                audio_preview = create_audio_player(prompt_name, audio_dir)
-                                if not audio_preview:
-                                    st.warning("⚠️ Audio file not found")
-                                    st.text(f"Expected: {prompt_name}.wav")
+                            for idx, row in campaign_prompts.iterrows():
+                                prompt_name = row['Prompt Name']
+                                with st.expander(f"{prompt_name}", expanded=True):
+                                    cols = st.columns([3, 1])
                                     
-            except Exception as e:
-                st.error(f"Error processing IVR file {ivr_file}: {str(e)}")
-                continue
-    else:
-        st.error(f"Mapping file {mapping_file} not found!")
+                                    with cols[0]:
+                                        if prompt_name in prompt_locations:
+                                            st.markdown("#### Module Locations")
+                                            for location in prompt_locations[prompt_name]:
+                                                st.markdown(f"**{location['module_name']}** ({location['module_type']})")
+                                                
+                                                # Find and display the flow path for this module
+                                                for module_id, module in modules.items():
+                                                    if module['name'] == location['module_name']:
+                                                        st.markdown("**Flow Path:**")
+                                                        flow_paths = display_flow_path(modules, module_id)
+                                                        for path in flow_paths:
+                                                            st.text(path)
+                                                        st.markdown("---")
+                                        else:
+                                            st.warning("Prompt not found in IVR flow")
+                                    
+                                    with cols[1]:
+                                        st.markdown("**Audio Preview:**")
+                                        audio_preview = create_audio_player(prompt_name, audio_dir)
+                                        if not audio_preview:
+                                            st.warning("⚠️ Audio file not found")
+                                            st.text(f"Expected: {prompt_name}.wav")
+                                    
+                except Exception as e:
+                    st.error(f"Error processing IVR file {ivr_file}: {str(e)}")
+                    continue
+        else:
+            st.error(f"IVR directory {ivr_dir} not found!")
 
 if __name__ == "__main__":
     main()
