@@ -19,8 +19,10 @@ def get_unique_campaigns(df):
             all_campaigns.extend(campaigns)
     return sorted(list(set(all_campaigns)))
 
-def get_audio_path(prompt_name, audio_dir):
+def get_audio_path(prompt_name):
     """Get the path for an audio file based on the prompt name"""
+    audio_dir = "./prompts"  # Hardcoded directory path
+    
     # Try with spaces (original filename)
     filename_with_spaces = f"{prompt_name}.wav"
     path_with_spaces = os.path.join(audio_dir, filename_with_spaces)
@@ -29,16 +31,15 @@ def get_audio_path(prompt_name, audio_dir):
     filename_with_underscores = f"{prompt_name.replace(' ', '_')}.wav"
     path_with_underscores = os.path.join(audio_dir, filename_with_underscores)
     
-    # Return the path that exists, or the space version if neither exists
     if os.path.exists(path_with_spaces):
         return path_with_spaces
     elif os.path.exists(path_with_underscores):
         return path_with_underscores
-    return path_with_spaces  # Default to spaces version for error messaging
+    return path_with_spaces
 
-def create_audio_player(prompt_name, audio_dir):
+def create_audio_player(prompt_name):
     """Create an audio player for the given prompt"""
-    audio_path = get_audio_path(prompt_name, audio_dir)
+    audio_path = get_audio_path(prompt_name)
     if os.path.exists(audio_path):
         with open(audio_path, 'rb') as audio_file:
             audio_bytes = audio_file.read()
@@ -48,41 +49,17 @@ def create_audio_player(prompt_name, audio_dir):
 def main():
     st.set_page_config(
         page_title="Campaign Prompt Player",
-        layout="wide",
-        initial_sidebar_state="expanded"
+        layout="wide"
     )
     
     st.title("Campaign Prompt Player")
-    
-    # Sidebar for configuration
-    with st.sidebar:
-        st.header("Settings")
-        audio_dir = st.text_input(
-            "Audio Directory Path",
-            value="./prompts",
-            help="Directory containing the prompt audio files (.wav format)"
-        )
-        
-        # Audio file checker
-        if st.button("Check Audio Directory"):
-            if os.path.exists(audio_dir):
-                files = os.listdir(audio_dir)
-                wav_files = [f for f in files if f.endswith('.wav')]
-                st.success(f"Found {len(wav_files)} .wav files:")
-                for file in wav_files:
-                    st.text(f"• {file}")
-            else:
-                st.error("Directory not found!")
 
-    # Main content area
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        mapping_file = st.file_uploader(
-            "Upload Campaign-Prompt Mapping CSV",
-            type=['csv'],
-            help="CSV file with 'Prompt Name' and 'Associated Campaigns' columns"
-        )
+    # File uploader for mapping CSV
+    mapping_file = st.file_uploader(
+        "Upload Campaign-Prompt Mapping CSV",
+        type=['csv'],
+        help="CSV file with 'Prompt Name' and 'Associated Campaigns' columns"
+    )
 
     if mapping_file:
         # Load the mapping data
@@ -119,13 +96,12 @@ def main():
                     st.text("Campaigns: " + ", ".join(row['Associated Campaigns']))
                 
                 with cols[1]:
-                    audio_path = get_audio_path(prompt_name, audio_dir)
+                    audio_path = get_audio_path(prompt_name)
                     if os.path.exists(audio_path):
-                        create_audio_player(prompt_name, audio_dir)
+                        create_audio_player(prompt_name)
                     else:
                         st.warning("⚠️ Audio not found")
                         st.text(f"Looking for: {os.path.basename(audio_path)}")
-                        st.text("(with or without spaces)")
 
 if __name__ == "__main__":
     main()
