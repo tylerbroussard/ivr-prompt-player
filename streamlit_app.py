@@ -21,8 +21,20 @@ def get_unique_campaigns(df):
 
 def get_audio_path(prompt_name, audio_dir):
     """Get the path for an audio file based on the prompt name"""
-    filename = f"{prompt_name.replace(' ', '_')}.wav"
-    return os.path.join(audio_dir, filename)
+    # Try with spaces (original filename)
+    filename_with_spaces = f"{prompt_name}.wav"
+    path_with_spaces = os.path.join(audio_dir, filename_with_spaces)
+    
+    # Try with underscores
+    filename_with_underscores = f"{prompt_name.replace(' ', '_')}.wav"
+    path_with_underscores = os.path.join(audio_dir, filename_with_underscores)
+    
+    # Return the path that exists, or the space version if neither exists
+    if os.path.exists(path_with_spaces):
+        return path_with_spaces
+    elif os.path.exists(path_with_underscores):
+        return path_with_underscores
+    return path_with_spaces  # Default to spaces version for error messaging
 
 def create_audio_player(prompt_name, audio_dir):
     """Create an audio player for the given prompt"""
@@ -56,7 +68,9 @@ def main():
             if os.path.exists(audio_dir):
                 files = os.listdir(audio_dir)
                 wav_files = [f for f in files if f.endswith('.wav')]
-                st.success(f"Found {len(wav_files)} .wav files")
+                st.success(f"Found {len(wav_files)} .wav files:")
+                for file in wav_files:
+                    st.text(f"• {file}")
             else:
                 st.error("Directory not found!")
 
@@ -110,7 +124,8 @@ def main():
                         create_audio_player(prompt_name, audio_dir)
                     else:
                         st.warning("⚠️ Audio not found")
-                        st.text(f"Expected: {os.path.basename(audio_path)}")
+                        st.text(f"Looking for: {os.path.basename(audio_path)}")
+                        st.text("(with or without spaces)")
 
 if __name__ == "__main__":
     main()
