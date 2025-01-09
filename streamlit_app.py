@@ -3,12 +3,19 @@ import pandas as pd
 import os
 from pathlib import Path
 
-def load_mapping_file(file):
-    """Load and process the campaign mapping CSV file"""
-    df = pd.read_csv(file)
-    # Split campaigns if they're in a comma-separated format
-    df['Associated Campaigns'] = df['Associated Campaigns'].str.split(',')
-    return df
+def load_mapping_file():
+    """Load and process the campaign mapping CSV file from local directory"""
+    try:
+        df = pd.read_csv("prompt_campaign_mapping.csv")
+        # Split campaigns if they're in a comma-separated format
+        df['Associated Campaigns'] = df['Associated Campaigns'].str.split(',')
+        return df
+    except FileNotFoundError:
+        st.error("prompt_campaign_mapping.csv not found in the current directory")
+        return None
+    except Exception as e:
+        st.error(f"Error reading mapping file: {str(e)}")
+        return None
 
 def get_unique_campaigns(df):
     """Extract unique campaigns from the dataframe"""
@@ -17,7 +24,7 @@ def get_unique_campaigns(df):
     for campaigns in df['Associated Campaigns']:
         if isinstance(campaigns, list):
             all_campaigns.extend(campaigns)
-    return sorted(list(set(all_campaigns)))
+    return sorted(list(set(campaign.strip() for campaign in all_campaigns)))
 
 def get_audio_path(prompt_name):
     """Get the path for an audio file based on the prompt name"""
@@ -54,17 +61,10 @@ def main():
     
     st.title("Campaign Prompt Player")
 
-    # File uploader for mapping CSV
-    mapping_file = st.file_uploader(
-        "Upload Campaign-Prompt Mapping CSV",
-        type=['csv'],
-        help="CSV file with 'Prompt Name' and 'Associated Campaigns' columns"
-    )
-
-    if mapping_file:
-        # Load the mapping data
-        df = load_mapping_file(mapping_file)
-        
+    # Load mapping data directly from file
+    df = load_mapping_file()
+    
+    if df is not None:
         # Get unique campaigns
         campaigns = get_unique_campaigns(df)
         
