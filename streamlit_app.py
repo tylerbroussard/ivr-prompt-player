@@ -137,11 +137,14 @@ class PromptAnalyzer:
             # Find the prompt element
             prompt_elem = module.find(f'.//promptData/prompt[id="{prompt_id}"]')
             if prompt_elem is not None:
-                # A prompt is only truly "in use" if it's part of the main flow
-                # Prompts in error handling (count > 1) or exit actions are considered not in use
+                # A prompt is considered "in use" if:
+                # 1. It's part of the main flow (count == 1 and action == 'REPROMPT')
+                # 2. It's a transfer prompt (regardless of count)
+                # 3. It's an invalid selection prompt (regardless of count)
+                prompt_name = prompt_elem.find('name')
                 is_active = any(
-                    context['count'] == 1 and 
-                    context['action'] == 'REPROMPT' 
+                    (context['count'] == 1 and context['action'] == 'REPROMPT') or
+                    (prompt_name is not None and ('Transfer Prompt' in prompt_name.text or 'Invalid' in prompt_name.text))
                     for context in contexts
                 )
                 self._add_prompt(prompt_elem, module_name, module_id, is_active)
