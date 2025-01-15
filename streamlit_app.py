@@ -79,9 +79,10 @@ class ModuleGraph:
 
 class PromptAnalyzer:
     """Class to handle prompt analysis"""
-    def __init__(self, module_graph: ModuleGraph):
+    def __init__(self, module_graph: ModuleGraph, root: ET.Element):
         self.module_graph = module_graph
         self.prompts = {}
+        self.root = root
 
     def process_module(self, module: ET.Element) -> None:
         """Process prompts in a module"""
@@ -127,28 +128,24 @@ class PromptAnalyzer:
             './/recoEvents//multiLanguagesPromptItem/prompt',
             './/prompt/multiLanguagesPromptItem/prompt'
         ]
-        
+            
         for path in event_paths:
             for event_prompt in module.findall(path):
                 # For event prompts, we need to look up the prompt details by ID
                 prompt_id = event_prompt.text
-                # Find the corresponding prompt element in the XML
-                prompt_elem = module.getroottree().find(f'.//*[id="{prompt_id}"]')
-                if prompt_elem is not None:
-                    self._add_prompt(prompt_elem, module_name, module_id, False)
+                # Find the corresponding prompt element in the XML by searching all prompts
+                for prompt_elem in self.root.findall('.//prompt'):
+                    id_elem = prompt_elem.find('.//id')
+                    if id_elem is not None and id_elem.text == prompt_id:
+                        self._add_prompt(prompt_elem, module_name, module_id, False)
+                        break
 
     def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, 
                    is_active: bool) -> None:
         """Add a prompt to the prompts dictionary"""
         # Handle prompts with direct id/name elements
-        prompt_id = prompt_elem.find('id')
-        prompt_name = prompt_elem.find('name')
-        
-        # If not found, check if this is the prompt element itself
-        if prompt_id is None:
-            prompt_id = prompt_elem
-        if prompt_name is None:
-            prompt_name = prompt_elem.find('.//name')
+        prompt_id = prompt_elem.find('.//id')
+        prompt_name = prompt_elem.find('.//name')
         
         if prompt_id is not None and prompt_name is not None:
             key = (prompt_id.text, prompt_name.text)
@@ -179,7 +176,7 @@ def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
         module_graph = ModuleGraph(root)
         
         # Create prompt analyzer
-        analyzer = PromptAnalyzer(module_graph)
+        analyzer = PromptAnalyzer(module_graph, root)
         
         # Process all modules
         for module in root.findall('.//modules/*'):
