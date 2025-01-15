@@ -129,10 +129,10 @@ class PromptAnalyzer:
         logger.info(f"Processing menu prompts for {module_name} (ID: {module_id})")
         all_prompts = {}  # id -> (elem, is_active)
         
-        # Process main menu prompts first
+        # Process main menu prompts first - these are in the prompts section
         for prompt_elem in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
             prompt_id = prompt_elem.find('id')
-            prompt_name = prompt_elem.find('name')
+            prompt_name = prompt_elem.find('n')
             if prompt_id is not None and prompt_name is not None:
                 logger.info(f"Found main menu prompt: {prompt_name.text} (ID: {prompt_id.text})")
                 all_prompts[prompt_id.text] = (prompt_elem, False)
@@ -147,17 +147,27 @@ class PromptAnalyzer:
                 action_text = action.text
                 logger.info(f"Processing recoEvent - count: {count}, action: {action_text}")
                 
-                for prompt_elem in reco_event.findall('.//promptData/prompt'):
+                # Find all prompts in this recoEvent - they can be in filePrompt or compoundPrompt
+                for prompt_elem in reco_event.findall('.//filePrompt/promptData/prompt'):
                     prompt_id = prompt_elem.find('id')
-                    prompt_name = prompt_elem.find('name')
+                    prompt_name = prompt_elem.find('n')
                     if prompt_id is not None and prompt_name is not None:
                         is_active = is_reachable and count == 1 and action_text == 'REPROMPT'
                         logger.info(f"Found recoEvent prompt: {prompt_name.text} (ID: {prompt_id.text}), active: {is_active}")
                         all_prompts[prompt_id.text] = (prompt_elem, is_active)
+                        
+                # Also check compoundPrompt/filePrompt paths
+                for prompt_elem in reco_event.findall('.//compoundPrompt/filePrompt/promptData/prompt'):
+                    prompt_id = prompt_elem.find('id')
+                    prompt_name = prompt_elem.find('n')
+                    if prompt_id is not None and prompt_name is not None:
+                        is_active = is_reachable and count == 1 and action_text == 'REPROMPT'
+                        logger.info(f"Found recoEvent compound prompt: {prompt_name.text} (ID: {prompt_id.text}), active: {is_active}")
+                        all_prompts[prompt_id.text] = (prompt_elem, is_active)
         
         # Add all prompts to the result
         for prompt_elem, is_active in all_prompts.values():
-            prompt_name = prompt_elem.find('name')
+            prompt_name = prompt_elem.find('n')
             if prompt_name is not None:
                 logger.info(f"Adding prompt to results: {prompt_name.text}, active: {is_active}")
             self._add_prompt(prompt_elem, module_name, module_id, is_active)
@@ -172,7 +182,7 @@ class PromptAnalyzer:
                    is_active: bool) -> None:
         """Add a prompt to the prompts dictionary"""
         prompt_id = prompt_elem.find('id')
-        prompt_name = prompt_elem.find('name')
+        prompt_name = prompt_elem.find('n')
         
         if prompt_id is not None and prompt_name is not None:
             key = (prompt_id.text, prompt_name.text)
