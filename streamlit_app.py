@@ -105,14 +105,21 @@ class PromptAnalyzer:
         Process prompts specific to menu modules, including:
           - The 'Prompts' tab (promptData/prompt)
           - The 'Events' tab (recoEvents/event/promptData/prompt)
+        
+        If the menu module itself is not reachable, all prompts are marked as not in use.
         """
+        # If menu is not reachable, all prompts are not in use regardless of where they appear
+        if not is_reachable:
+            is_reachable = False
+        
         # Process prompts from the "Prompts" tab
         for prompt in module.findall('.//promptData/prompt'):
             self._add_prompt(prompt, module_name, module_id, is_reachable)
 
         # Process prompts from the "Events" tab (e.g. No Input, No Match)
+        # Event prompts are always not in use
         for event_prompt in module.findall('.//recoEvents/event/promptData/prompt'):
-            self._add_prompt(event_prompt, module_name, module_id, is_reachable)
+            self._add_prompt(event_prompt, module_name, module_id, False)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                                   is_reachable: bool) -> None:
