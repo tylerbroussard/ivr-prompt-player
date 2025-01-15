@@ -155,8 +155,8 @@ def main():
     # Load mapping data
     df = load_mapping_file()
     
-    # Read IVR files from repository
-    ivr_dir = "./IVRs"  # Updated path
+    # Read IVR files from repository but don't display the table
+    ivr_dir = "./IVRs"
     xml_data = pd.DataFrame()
     
     try:
@@ -178,42 +178,26 @@ def main():
                 for name, group in xml_data.groupby(['ID', 'Name']):
                     prompt_id, prompt_name = name
                     is_announcement = (group['Type'] == 'Announcement').any()
-                    
-                    # Combine modules and take most permissive status
-                    modules = ', '.join(sorted(set(m.strip() for m in ','.join(group['Module'].fillna('')).split(','))))
                     has_enabled = any('✅' in status for status in group['Status'])
-                    
                     status = ('✅ Enabled' if has_enabled else '❌ Disabled') if is_announcement else ('✅ In Use' if has_enabled else '❌ Not In Use')
                     
                     final_data.append({
                         'ID': prompt_id,
                         'Name': prompt_name,
-                        'Module': modules,
                         'Type': 'Announcement' if is_announcement else 'Play',
                         'Status': status,
-                        'Source File': ', '.join(sorted(group['Source File'].unique()))
                     })
                     
-                final_df = pd.DataFrame(final_data)
-                
-                st.write("### Prompt Status from IVR Files")
-                st.dataframe(
-                    final_df[['Name', 'ID', 'Module', 'Type', 'Status', 'Source File']].sort_values('Name'),
-                    hide_index=True,
-                    use_container_width=True
-                )
+                xml_data = pd.DataFrame(final_data)
+        
+        if ivr_files and not xml_data.empty:
+            inactive_prompts_count = len(xml_data[xml_data['Status'].str.contains('❌')])
         else:
+            inactive_prompts_count = 0
             st.warning("No IVR files found in the repository. Please ensure IVR files are in the ./IVRs directory.")
     except Exception as e:
         st.error(f"Error reading IVR files: {str(e)}")
-        
-        if not xml_data.empty:
-            st.write("### Prompt Status from IVR Files")
-            st.dataframe(
-                xml_data[['Name', 'ID', 'Module', 'Type', 'Status', 'Source File']],
-                hide_index=True,
-                use_container_width=True
-            )
+        inactive_prompts_count = 0
     
     if df is not None:
         # Get unique campaigns
@@ -236,10 +220,7 @@ def main():
         with col1:
             st.metric("Prompts in Selected Campaign", len(campaign_prompts))
         with col2:
-            if not xml_data.empty:
-                # Count prompts that are not in use or disabled
-                inactive_prompts = len(xml_data[xml_data['Status'].str.contains('❌')])
-                st.metric("Inactive Prompts", inactive_prompts)
+            st.metric("Inactive Prompts", inactive_prompts_count)
         
         # Display associated campaigns
         st.markdown("### Campaign Details")
@@ -250,13 +231,16 @@ def main():
         
         for idx, row in campaign_prompts.iterrows():
             prompt_name = row['Prompt Name']
-            status_info = ""
+            
+            # Get status from xml_data
+            status_info = "Status Unknown"
             if not xml_data.empty:
                 prompt_status = xml_data[xml_data['Name'] == prompt_name]
                 if not prompt_status.empty:
-                    status_info = f" ({prompt_status.iloc[0]['Status']})"
+                    status_info = prompt_status.iloc[0]['Status']
+                    status_type = prompt_status.iloc[0]['Type']
             
-            with st.expander(f"{prompt_name}{status_info}", expanded=True):
+            with st.expander(f"{prompt_name} ({status_info})", expanded=True):
                 audio_path = get_audio_path(prompt_name)
                 if os.path.exists(audio_path):
                     create_audio_player(prompt_name)
