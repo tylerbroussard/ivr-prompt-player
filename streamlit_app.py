@@ -60,6 +60,45 @@ def is_module_disconnected(module: ET.Element, reachable_modules: Set[str]) -> b
     
     return module_id.text not in reachable_modules
 
+def find_all_prompts_in_module(module: ET.Element, module_name: str, module_id: str, is_disconnected: bool) -> List[Dict]:
+    """Extract all prompts from a module, including those in recoEvents"""
+    prompts = []
+    
+    # Find all prompt elements, regardless of their location in the XML
+    for elem in module.findall('.//'):
+        if elem.tag == 'prompt' and elem.find('id') is not None and elem.find('name') is not None:
+            prompt_id = elem.find('id')
+            prompt_name = elem.find('name')
+            
+            # Check if this is an announcement prompt
+            is_announcement = False
+            parent = elem.getparent()
+            while parent is not None:
+                if parent.tag == 'announcements':
+                    is_announcement = True
+                    enabled_elem = parent.find('enabled')
+                    enabled = enabled_elem is not None and enabled_elem.text.lower() == 'true'
+                    break
+                parent = parent.getparent()
+            
+            if is_announcement:
+                if is_disconnected:
+                    enabled = False
+            else:
+                enabled = not is_disconnected
+                
+            prompts.append({
+                'ID': prompt_id.text,
+                'Name': prompt_name.text,
+                'Module': module_name,
+                'ModuleID': module_id,
+                'Type': 'Announcement' if is_announcement else 'Play',
+                'Status': ('✅ Enabled' if enabled else '❌ Disabled') if is_announcement 
+                         else ('✅ In Use' if enabled else '❌ Not In Use')
+            })
+    
+    return prompts
+
 def extract_prompts_from_xml(file_path):
     """Extract prompts and their status from XML content"""
     try:
