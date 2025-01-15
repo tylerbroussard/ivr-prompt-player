@@ -46,9 +46,10 @@ class ModuleGraph:
                         if descendant is not None and descendant.text:
                             graph[current_id].add(descendant.text)
                             
-                # Add ascendants for reverse lookup
+                # Add ascendants as edges pointing TO the current module
                 for ascendant in module.findall('.//ascendants'):
                     if ascendant is not None and ascendant.text:
+                        # Create edge FROM ascendant TO current module
                         graph[ascendant.text].add(current_id)
         
         return graph
