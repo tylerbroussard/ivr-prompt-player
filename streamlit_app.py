@@ -16,11 +16,19 @@ def build_module_graph(root: ET.Element) -> Dict[str, List[str]]:
             module_id = module_id.text
             graph[module_id] = []
             
-            # Add descendants
-            for tag in ['singleDescendant', 'exceptionalDescendant']:
-                for descendant in module.findall(f'./{tag}'):
-                    if descendant.text:
-                        graph[module_id].append(descendant.text)
+            # Find all branches (for case modules)
+            branches = module.findall('.//branches/entry/value/desc')
+            if branches:
+                # Add all branch destinations
+                for branch in branches:
+                    if branch is not None and branch.text:
+                        graph[module_id].append(branch.text)
+            else:
+                # Add regular descendants if not a branching module
+                for tag in ['singleDescendant', 'exceptionalDescendant']:
+                    for descendant in module.findall(f'./{tag}'):
+                        if descendant.text:
+                            graph[module_id].append(descendant.text)
     
     return graph
 
