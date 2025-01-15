@@ -131,7 +131,7 @@ def main():
     st.title("Campaign Prompt Player")
     
     # Read IVR files from repository
-    ivr_dir = "./IVRs"  # Directory containing IVR files
+    ivr_dir = "./IVRs"  # Updated path
     xml_data = pd.DataFrame()
     
     try:
@@ -148,9 +148,40 @@ def main():
                     xml_data = pd.concat([xml_data, df], ignore_index=True)
             
             if not xml_data.empty:
+                # Group by prompt ID and determine final status
+                final_data = []
+                for name, group in xml_data.groupby(['ID', 'Name']):
+                    prompt_id, prompt_name = name
+                    # For announcements, if it's enabled anywhere, it's considered enabled
+                    is_announcement = (group['Type'] == 'Announcement').any()
+                    if is_announcement:
+                        enabled = group['Enabled'].any()
+                    else:
+                        enabled = group['Enabled'].any()
+                    
+                    final_data.append({
+                        'ID': prompt_id,
+                        'Name': prompt_name,
+                        'Module': ', '.join(group['Module'].unique()),
+                        'Type': 'Announcement' if is_announcement else 'Play',
+                        'Enabled': enabled,
+                        'Source File': ', '.join(group['Source File'].unique())
+                    })
+                
+                final_df = pd.DataFrame(final_data)
+                
+                # Convert status to display format
+                final_df['Status'] = final_df.apply(lambda x: 
+                    '✅ Enabled' if x['Enabled'] and x['Type'] == 'Announcement' 
+                    else '❌ Disabled' if not x['Enabled'] and x['Type'] == 'Announcement'
+                    else '✅ In Use' if x['Enabled'] and x['Type'] == 'Play'
+                    else '❌ Not In Use',
+                    axis=1
+                )
+                
                 st.write("### Prompt Status from IVR Files")
                 st.dataframe(
-                    xml_data[['Name', 'ID', 'Module', 'Type', 'Status', 'Source File']],
+                    final_df[['Name', 'ID', 'Module', 'Type', 'Status', 'Source File']].sort_values('Name'),
                     hide_index=True,
                     use_container_width=True
                 )
