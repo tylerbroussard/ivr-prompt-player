@@ -12,17 +12,6 @@ from collections import defaultdict
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@dataclass
-class Prompt:
-    """Data class to store prompt information"""
-    id: str
-    name: str
-    module: str
-    module_id: str
-    type: str
-    status: str
-    source_location: str
-
 class ModuleGraph:
     """Class to handle module connectivity analysis"""
     def __init__(self, root: ET.Element):
@@ -46,15 +35,21 @@ class ModuleGraph:
             if module_id is not None:
                 current_id = module_id.text
                 
-                # Add branch descendants
+                # Add branch descendants from branches/entry/value/desc
                 for branch in module.findall('.//branches/entry/value/desc'):
                     if branch is not None and branch.text:
                         graph[current_id].add(branch.text)
                 
                 # Add direct descendants
-                for descendant in module.findall('./singleDescendant'):
-                    if descendant is not None and descendant.text:
-                        graph[current_id].add(descendant.text)
+                for tag in ['singleDescendant', 'exceptionalDescendant']:
+                    for descendant in module.findall(f'./{tag}'):
+                        if descendant is not None and descendant.text:
+                            graph[current_id].add(descendant.text)
+                            
+                # Add ascendants for reverse lookup
+                for ascendant in module.findall('.//ascendants'):
+                    if ascendant is not None and ascendant.text:
+                        graph[ascendant.text].add(current_id)
         
         return graph
 
@@ -73,7 +68,9 @@ class ModuleGraph:
             current = stack.pop()
             if current not in self.reachable_modules:
                 self.reachable_modules.add(current)
-                stack.extend(self.graph[current])
+                for neighbor in self.graph[current]:
+                    if neighbor not in self.reachable_modules:
+                        stack.append(neighbor)
 
     def is_module_reachable(self, module_id: str) -> bool:
         """Check if a module is reachable from IncomingCall"""
@@ -94,74 +91,91 @@ class PromptAnalyzer:
             return
             
         is_reachable = self.module_graph.is_module_reachable(module_id.text)
-        seen_prompts = set()
         
-        # Process menu-specific prompts
+        # Process menu-specific prompts with special handling for recoEvents
         if module.tag == 'menu':
-            self._process_menu_prompts(module, module_name.text, module_id.text, is_reachable, seen_prompts)
-        
-        # Process standard prompts
-        self._process_standard_prompts(module, module_name.text, module_id.text, is_reachable, seen_prompts)
+            self._process_menu_prompts(module, module_name.text, module_id.text, is_reachable)
+        else:
+            self._process_standard_prompts(module, module_name.text, module_id.text, is_reachable)
 
     def _process_menu_prompts(self, module: ET.Element, module_name: str, module_id: str, 
-                            is_reachable: bool, seen_prompts: Set[str]) -> None:
+                            is_reachable: bool) -> None:
         """Process prompts specific to menu modules"""
-        # Process recoEvents prompts
-        for reco_event in module.findall('.//recoEvents'):
-            for prompt in reco_event.findall('.//promptData/prompt'):
-                self._add_prompt(prompt, module_name, module_id, is_reachable, seen_prompts)
-
+        # If module is not reachable, all prompts are not in use
+        if not is_reachable:
+            for prompt_elem in module.findall('.//promptData/prompt'):
+                self._add_prompt(prompt_elem, module_name, module_id, False)
+            return
+            
         # Process main menu prompts
         for prompt in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
-            self._add_prompt(prompt, module_name, module_id, is_reachable, seen_prompts)
+            self._add_prompt(prompt, module_name, module_id, True)
+            
+        # Track seen prompts and their recoEvents context
+        prompt_contexts = {}
+        
+        # First pass: collect all prompts and their contexts
+        for reco_event in module.findall('.//recoEvents'):
+            event_type = reco_event.find('event')
+            event_count = reco_event.find('count')
+            action = reco_event.find('action')
+            
+            for prompt in reco_event.findall('.//promptData/prompt'):
+                prompt_id = prompt.find('id')
+                if prompt_id is not None:
+                    context = {
+                        'event': event_type.text if event_type is not None else 'unknown',
+                        'count': int(event_count.text) if event_count is not None else 0,
+                        'action': action.text if action is not None else 'unknown'
+                    }
+                    if prompt_id.text not in prompt_contexts:
+                        prompt_contexts[prompt_id.text] = []
+                    prompt_contexts[prompt_id.text].append(context)
+        
+        # Second pass: process prompts with their full context
+        for prompt_id, contexts in prompt_contexts.items():
+            # Find the prompt element
+            prompt_elem = module.find(f'.//promptData/prompt[id="{prompt_id}"]')
+            if prompt_elem is not None:
+                # A prompt is only truly "in use" if it's part of the main flow
+                # Prompts in error handling (count > 1) or exit actions are considered not in use
+                is_active = any(
+                    context['count'] == 1 and 
+                    context['action'] == 'REPROMPT' 
+                    for context in contexts
+                )
+                self._add_prompt(prompt_elem, module_name, module_id, is_active)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
-                                is_reachable: bool, seen_prompts: Set[str]) -> None:
+                                is_reachable: bool) -> None:
         """Process prompts in standard modules"""
         for prompt in module.findall('.//prompt/filePrompt/promptData/prompt'):
-            self._add_prompt(prompt, module_name, module_id, is_reachable, seen_prompts)
+            self._add_prompt(prompt, module_name, module_id, is_reachable)
 
     def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, 
-                   is_reachable: bool, seen_prompts: Set[str]) -> None:
+                   is_active: bool) -> None:
         """Add a prompt to the prompts dictionary"""
         prompt_id = prompt_elem.find('id')
         prompt_name = prompt_elem.find('name')
         
-        if prompt_id is None or prompt_name is None:
-            return
+        if prompt_id is not None and prompt_name is not None:
+            key = (prompt_id.text, prompt_name.text)
+            status = '✅ In Use' if is_active else '❌ Not In Use'
             
-        key = (prompt_id.text, prompt_name.text)
-        
-        # Skip if we've seen this prompt in this module
-        if key in seen_prompts:
-            return
-            
-        seen_prompts.add(key)
-        status = '✅ In Use' if is_reachable else '❌ Not In Use'
-        
-        self.prompts[key] = Prompt(
-            id=prompt_id.text,
-            name=prompt_name.text,
-            module=module_name,
-            module_id=module_id,
-            type='Play',
-            status=status,
-            source_location=module_name
-        )
+            # Only update if not exists or if new status is "in use"
+            if key not in self.prompts or status == '✅ In Use':
+                self.prompts[key] = {
+                    'ID': prompt_id.text,
+                    'Name': prompt_name.text,
+                    'Module': module_name,
+                    'ModuleID': module_id,
+                    'Type': 'Play',
+                    'Status': status
+                }
 
     def get_results(self) -> pd.DataFrame:
         """Convert results to DataFrame"""
-        return pd.DataFrame([
-            {
-                'ID': p.id,
-                'Name': p.name,
-                'Module': p.module,
-                'ModuleID': p.module_id,
-                'Type': p.type,
-                'Status': p.status
-            }
-            for p in self.prompts.values()
-        ])
+        return pd.DataFrame(list(self.prompts.values()))
 
 def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
     """Analyze an IVR file and return prompt information"""
@@ -169,14 +183,22 @@ def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
         tree = ET.parse(file_path)
         root = tree.getroot()
         
+        # Create module graph
         module_graph = ModuleGraph(root)
+        
+        # Create prompt analyzer
         analyzer = PromptAnalyzer(module_graph)
         
+        # Process all modules
         for module in root.findall('.//modules/*'):
             analyzer.process_module(module)
         
+        # Get results
         results = analyzer.get_results()
+        
+        # Add source file information
         results['Source File'] = Path(file_path).name
+        
         return results
         
     except Exception as e:
@@ -252,6 +274,7 @@ def main():
             st.warning("No IVR files found or processed successfully")
     except Exception as e:
         st.error(f"Error processing IVR files: {str(e)}")
+        logger.error("Error in IVR processing", exc_info=True)
     
     # Get unique campaigns
     campaigns = get_unique_campaigns(mapping_df)
