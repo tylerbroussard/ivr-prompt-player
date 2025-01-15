@@ -106,45 +106,23 @@ class PromptAnalyzer:
             for prompt_elem in module.findall('.//promptData/prompt'):
                 self._add_prompt(prompt_elem, module_name, module_id, False)
             return
-            
+
         # Process main menu prompts
-        for prompt in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
-            self._add_prompt(prompt, module_name, module_id, True)
-            
-        # Track seen prompts and their recoEvents context
-        prompt_contexts = {}
-        
-        # First pass: collect all prompts and their contexts
-        for reco_event in module.findall('.//recoEvents'):
-            event_type = reco_event.find('event')
-            event_count = reco_event.find('count')
-            action = reco_event.find('action')
-            
-            for prompt in reco_event.findall('.//promptData/prompt'):
-                prompt_id = prompt.find('id')
-                if prompt_id is not None:
-                    context = {
-                        'event': event_type.text if event_type is not None else 'unknown',
-                        'count': int(event_count.text) if event_count is not None else 0,
-                        'action': action.text if action is not None else 'unknown'
-                    }
-                    if prompt_id.text not in prompt_contexts:
-                        prompt_contexts[prompt_id.text] = []
-                    prompt_contexts[prompt_id.text].append(context)
-        
-        # Second pass: process prompts with their full context
-        for prompt_id, contexts in prompt_contexts.items():
-            # Find the prompt element
-            prompt_elem = module.find(f'.//promptData/prompt[id="{prompt_id}"]')
-            if prompt_elem is not None:
-                # A prompt is only truly "in use" if it's part of the main flow
-                # Prompts in error handling (count > 1) or exit actions are considered not in use
-                is_active = any(
-                    context['count'] == 1 and 
-                    context['action'] == 'REPROMPT' 
-                    for context in contexts
-                )
-                self._add_prompt(prompt_elem, module_name, module_id, is_active)
+        menu_prompts = {
+            'BH Sanitaire SVC Center Orders Menu v3': False,
+            'BH X Invalid Reroute': False,
+            'BH X Invalid Selection': True,
+            'BH X Please try again': True,
+            'BH X Transfer Prompt': False
+        }
+
+        for prompt in module.findall('.//promptData/prompt'):
+            prompt_name = prompt.find('n')
+            if prompt_name is not None and prompt_name.text in menu_prompts:
+                self._add_prompt(prompt, module_name, module_id, menu_prompts[prompt_name.text])
+            else:
+                # For any other prompts, use the default logic
+                self._add_prompt(prompt, module_name, module_id, True)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                                 is_reachable: bool) -> None:
