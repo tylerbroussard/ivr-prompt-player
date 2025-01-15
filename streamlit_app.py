@@ -200,7 +200,6 @@ def load_mapping_file() -> Optional[pd.DataFrame]:
     try:
         df = pd.read_csv("prompt_campaign_mapping.csv")
         df['Associated Campaigns'] = df['Associated Campaigns'].str.split(',')
-        df['IVR File'] = df['IVR File'].fillna('')  # Handle missing IVR file values
         return df
     except FileNotFoundError:
         st.error("prompt_campaign_mapping.csv not found in the current directory")
@@ -301,10 +300,12 @@ def main():
     # Display prompts with audio players and status
     st.markdown("### Campaign Prompts")
     
-    # Get the IVR file for the selected campaign
-    campaign_ivr_files = mapping_df[mapping_df['Associated Campaigns'].apply(
-        lambda x: selected_campaign in x if isinstance(x, list) else False
-    )]['IVR File'].unique()
+    # Get the IVR files for the selected campaign based on the campaign name in the file name
+    campaign_name_parts = selected_campaign.lower().split()
+    campaign_ivr_files = [
+        file for file in prompt_status_df['Source File'].unique()
+        if any(part in file.lower() for part in campaign_name_parts)
+    ]
     
     for idx, row in campaign_prompts.iterrows():
         prompt_name = row['Prompt Name']
