@@ -46,10 +46,9 @@ class ModuleGraph:
                         if descendant is not None and descendant.text:
                             graph[current_id].add(descendant.text)
                             
-                # Add ascendants as edges pointing TO the current module
+                # Add ascendants for reverse lookup
                 for ascendant in module.findall('.//ascendants'):
                     if ascendant is not None and ascendant.text:
-                        # Create edge FROM ascendant TO current module
                         graph[ascendant.text].add(current_id)
         
         return graph
@@ -93,46 +92,35 @@ class PromptAnalyzer:
             
         is_reachable = self.module_graph.is_module_reachable(module_id.text)
         
-        # For menu modules, check if the module itself is reachable
+        # Process menu-specific prompts with special handling for recoEvents
         if module.tag == 'menu':
-            # If module is not reachable, mark all its prompts as not in use
-            if not is_reachable:
-                for prompt_elem in module.findall('.//promptData/prompt'):
-                    self._add_prompt(prompt_elem, module_name.text, module_id.text, False)
-                return
             self._process_menu_prompts(module, module_name.text, module_id.text, is_reachable)
         else:
             self._process_standard_prompts(module, module_name.text, module_id.text, is_reachable)
 
     def _process_menu_prompts(self, module: ET.Element, module_name: str, module_id: str, 
-                            is_reachable: bool) -> None:
-        """Process prompts specific to menu modules"""
-        # Process all prompts in the menu module
-        for prompt_container in module.findall('.//promptData/prompt'):
-            # Get the parent elements to determine context
-            parent_elements = []
-            parent = prompt_container.getparent()
-            while parent is not None:
-                if parent.tag in ['recoEvents', 'prompts']:
-                    parent_elements.append(parent.tag)
-                parent = parent.getparent()
-                
-            # If the prompt is in recoEvents, it's an error/help prompt
-            # These should be marked as not in use if the module is not reachable
-            if 'recoEvents' in parent_elements:
-                self._add_prompt(prompt_container, module_name, module_id, False)
-            else:
-                # For main menu prompts, use the module's reachability
-                self._add_prompt(prompt_container, module_name, module_id, is_reachable)
+                              is_reachable: bool) -> None:
+        """
+        Process prompts specific to menu modules, including:
+          - The regular 'Prompts' tab (promptData/prompt)
+          - The 'Events' tab (recoEvents/event/promptData/prompt)
+        """
+        # Process prompts from the "Prompts" tab
+        for prompt in module.findall('.//promptData/prompt'):
+            self._add_prompt(prompt, module_name, module_id, is_reachable)
+
+        # Process prompts from the "Events" tab (e.g., No Input, No Match, etc.)
+        for event_prompt in module.findall('.//recoEvents/event/promptData/prompt'):
+            self._add_prompt(event_prompt, module_name, module_id, is_reachable)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
-                                is_reachable: bool) -> None:
+                                  is_reachable: bool) -> None:
         """Process prompts in standard modules"""
         for prompt in module.findall('.//prompt/filePrompt/promptData/prompt'):
             self._add_prompt(prompt, module_name, module_id, is_reachable)
 
     def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, 
-                   is_active: bool) -> None:
+                    is_active: bool) -> None:
         """Add a prompt to the prompts dictionary"""
         prompt_id = prompt_elem.find('id')
         prompt_name = prompt_elem.find('name')
