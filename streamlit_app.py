@@ -141,13 +141,23 @@ class PromptAnalyzer:
         
         if prompt_id is not None and prompt_name is not None:
             key = (module_id, prompt_id.text, prompt_name.text)
+            
+            # Check if this prompt is in an event handler
+            is_event = prompt_elem.find('../../recoEvents') is not None or \
+                      prompt_elem.find('../../../recoEvents') is not None or \
+                      prompt_elem.find('../../../../recoEvents') is not None
+            
+            # Add event suffix to module name if it's an event prompt
+            module_display = f"{module_name} (Event)" if is_event else module_name
+            
+            # Status depends on module reachability
             status = '✅ In Use' if is_active else '❌ Not In Use'
             
             # Overwrite the dictionary entry to show module-specific usage
             self.prompts[key] = {
                 'ID': prompt_id.text,
                 'Name': prompt_name.text,
-                'Module': module_name,
+                'Module': module_display,
                 'ModuleID': module_id,
                 'Type': 'Play',
                 'Status': status
@@ -297,16 +307,14 @@ def main():
         relevant_prompt_rows = prompt_status_df[prompt_status_df['Name'] == prompt_name]
         
         if not relevant_prompt_rows.empty:
-            # Check if this prompt is used in any menu events
-            is_menu_event = any('recoEvents' in str(module) for module in relevant_prompt_rows['Module'])
+            # Debug information
+            st.write(f"Debug for {prompt_name}:")
+            st.write("Module names:", relevant_prompt_rows['Module'].tolist())
+            st.write("Status values:", relevant_prompt_rows['Status'].tolist())
             
-            if is_menu_event:
-                # Menu event prompts are always not in use
-                status_info = '❌ Not In Use'
-            else:
-                # For non-event prompts, check if they're in use in any module
-                is_in_use = any(status == '✅ In Use' for status in relevant_prompt_rows['Status'])
-                status_info = '✅ In Use' if is_in_use else '❌ Not In Use'
+            # Status depends on module reachability
+            is_in_use = any(status == '✅ In Use' for status in relevant_prompt_rows['Status'])
+            status_info = '✅ In Use' if is_in_use else '❌ Not In Use'
             
             with st.expander(f"{prompt_name} ({status_info})", expanded=False):
                 create_audio_player(prompt_name)
