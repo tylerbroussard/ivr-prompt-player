@@ -102,6 +102,7 @@ class PromptAnalyzer:
             module_name = module_name.text
             module_id = module_id.text
             is_reachable = self.module_graph.is_module_reachable(module_id)
+            is_skill_transfer = module.tag == 'skillTransfer'
             
             # First, find all announcement prompts and their enabled status
             for announcement in module.findall('.//announcements'):
@@ -110,11 +111,15 @@ class PromptAnalyzer:
                 if prompt is not None and enabled is not None:
                     prompt_id = prompt.find('id')
                     if prompt_id is not None:
+                        # For skill transfer modules, if the module is reachable and announcement is enabled,
+                        # the prompt is in use regardless of disconnected status
+                        announcement_enabled = enabled.text.lower() == 'true'
                         self.announcement_prompts[prompt_id.text] = {
-                            'enabled': enabled.text.lower() == 'true',
+                            'enabled': announcement_enabled,
                             'module_id': module_id,
                             'module_name': module_name,
-                            'is_reachable': is_reachable
+                            'is_reachable': is_reachable or (is_skill_transfer and announcement_enabled),
+                            'is_skill_transfer': is_skill_transfer
                         }
             
             # Process prompts in different possible locations
@@ -128,9 +133,9 @@ class PromptAnalyzer:
             
             for location in prompt_locations:
                 for prompt_elem in module.findall(location):
-                    self._add_prompt(prompt_elem, module_name, module_id, is_reachable)
+                    self._add_prompt(prompt_elem, module_name, module_id, is_reachable, is_skill_transfer)
     
-    def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, is_reachable: bool):
+    def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, is_reachable: bool, is_skill_transfer: bool):
         """Add a prompt to the prompts dictionary"""
         prompt_id = prompt_elem.find('id')
         prompt_name = prompt_elem.find('name')
@@ -148,6 +153,7 @@ class PromptAnalyzer:
                 module_name = announcement_info['module_name']
                 module_id = announcement_info['module_id']
                 is_reachable = announcement_info['is_reachable']
+                is_skill_transfer = announcement_info['is_skill_transfer']
             else:
                 enabled = is_reachable
             
@@ -159,11 +165,19 @@ class PromptAnalyzer:
                 module_type = "Event"
             elif is_announcement:
                 module_type = "Announcement"
-            elif prompt_elem.find('../../skillTransfer') is not None or \
-                 prompt_elem.find('../../../skillTransfer') is not None:
+            elif is_skill_transfer:
                 module_type = "Queue"
                 
             module_display = f"{module_name} ({module_type})" if module_type else module_name
+            
+            # For skill transfer announcements that are enabled, show as "In Use"
+            if is_skill_transfer and is_announcement and enabled:
+                status = '✅ In Use'
+            else:
+                status = '✅ Enabled' if enabled and is_announcement \
+                        else '❌ Disabled' if not enabled and is_announcement \
+                        else '✅ In Use' if enabled \
+                        else '❌ Not In Use'
             
             self.prompts[key] = {
                 'ID': prompt_id.text,
@@ -171,10 +185,7 @@ class PromptAnalyzer:
                 'Module': module_display,
                 'ModuleID': module_id,
                 'Type': 'Announcement' if is_announcement else 'Play',
-                'Status': '✅ Enabled' if enabled and is_announcement 
-                         else '❌ Disabled' if not enabled and is_announcement
-                         else '✅ In Use' if enabled 
-                         else '❌ Not In Use',
+                'Status': status,
                 'Source File': ''  # Will be filled in later
             }
     
