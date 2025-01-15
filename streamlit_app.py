@@ -23,11 +23,13 @@ class ModuleGraph:
         """Build directed graph of module connections"""
         graph = defaultdict(set)
         
-        # Initialize all modules
+        # Initialize all modules and track their types
+        module_types = {}
         for module in root.findall('.//modules/*'):
             module_id = module.find('moduleId')
             if module_id is not None:
                 graph[module_id.text] = set()
+                module_types[module_id.text] = module.tag
         
         # Build connections
         for module in root.findall('.//modules/*'):
@@ -58,6 +60,14 @@ class ModuleGraph:
                     if ascendant is not None and ascendant.text:
                         graph[ascendant.text].add(current_id)
         
+        # Special handling: mark all modules that have no incoming connections as unreachable
+        # except for incomingCall modules
+        for module_id in graph:
+            has_incoming = any(module_id in descendants for descendants in graph.values())
+            if not has_incoming and module_types.get(module_id) != 'incomingCall':
+                # Add a special marker to indicate this module is disconnected
+                graph[module_id].add('__DISCONNECTED__')
+        
         return graph
 
     def _find_incoming_call(self, root: ET.Element) -> None:
@@ -76,12 +86,14 @@ class ModuleGraph:
             if current not in self.reachable_modules:
                 self.reachable_modules.add(current)
                 for neighbor in self.graph[current]:
-                    if neighbor not in self.reachable_modules:
+                    # Skip modules marked as disconnected
+                    if neighbor != '__DISCONNECTED__' and neighbor not in self.reachable_modules:
                         stack.append(neighbor)
 
     def is_module_reachable(self, module_id: str) -> bool:
         """Check if a module is reachable from IncomingCall"""
-        return module_id in self.reachable_modules
+        # A module is not reachable if it's disconnected or not in reachable_modules
+        return module_id in self.reachable_modules and '__DISCONNECTED__' not in self.graph[module_id]
 
 class PromptAnalyzer:
     """Class to handle prompt analysis"""
