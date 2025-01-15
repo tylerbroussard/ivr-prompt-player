@@ -68,6 +68,10 @@ class ModuleGraph:
                     connections = module.findall(f'./{tag}')
                     all_connections.extend([conn.text for conn in connections])
                 
+                # Special case: skill transfer modules should not be considered disconnected
+                if module.tag == 'skillTransfer':
+                    continue
+                    
                 # If all connections point to self, module is disconnected
                 if all_connections and all(conn == module_id for conn in all_connections):
                     disconnected.add(module_id)
@@ -314,10 +318,12 @@ def main():
     
     # Get the IVR files for the selected campaign based on the campaign name in the file name
     campaign_name_parts = selected_campaign.lower().split()
-    campaign_ivr_files = [
-        file for file in prompt_status_df['Source File'].unique()
-        if any(part in file.lower() for part in campaign_name_parts)
-    ]
+    campaign_ivr_files = []
+    for file in prompt_status_df['Source File'].unique():
+        file_lower = file.lower()
+        # Check if all significant parts of the campaign name are in the file name
+        if all(part in file_lower for part in campaign_name_parts if len(part) > 2):
+            campaign_ivr_files.append(file)
     
     for idx, row in campaign_prompts.iterrows():
         prompt_name = row['Prompt Name']
