@@ -285,19 +285,23 @@ def main():
         return
     
     # Process IVR files to get prompt statuses
-    ivr_dir = "./IVRs"
+    ivr_dir = "/IVRs"
     prompt_status_df = pd.DataFrame()
     
     try:
         ivr_files = list(Path(ivr_dir).glob('*.five9ivr')) + list(Path(ivr_dir).glob('*.xml'))
         
         if ivr_files:
+            logger.info(f"Found {len(ivr_files)} IVR files")
             for file_path in ivr_files:
+                logger.info(f"Processing IVR file: {file_path}")
                 df = analyze_ivr_file(str(file_path))
                 if df is not None:
                     prompt_status_df = pd.concat([prompt_status_df, df], ignore_index=True)
-        
-        if prompt_status_df.empty:
+                else:
+                    logger.warning(f"Failed to process IVR file: {file_path}")
+        else:
+            logger.warning(f"No IVR files found in {ivr_dir}")
             st.warning("No IVR files found or processed successfully")
     except Exception as e:
         st.error(f"Error processing IVR files: {str(e)}")
