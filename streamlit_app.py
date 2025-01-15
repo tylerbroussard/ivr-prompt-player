@@ -108,8 +108,22 @@ class PromptAnalyzer:
                             is_reachable: bool) -> None:
         """Process prompts specific to menu modules"""
         # Process all prompts in the menu module
-        for prompt in module.findall('.//promptData/prompt'):
-            self._add_prompt(prompt, module_name, module_id, is_reachable)
+        for prompt_container in module.findall('.//promptData/prompt'):
+            # Get the parent elements to determine context
+            parent_elements = []
+            parent = prompt_container.getparent()
+            while parent is not None:
+                if parent.tag in ['recoEvents', 'prompts']:
+                    parent_elements.append(parent.tag)
+                parent = parent.getparent()
+                
+            # If the prompt is in recoEvents, it's an error/help prompt
+            # These should be marked as not in use if the module is not reachable
+            if 'recoEvents' in parent_elements:
+                self._add_prompt(prompt_container, module_name, module_id, False)
+            else:
+                # For main menu prompts, use the module's reachability
+                self._add_prompt(prompt_container, module_name, module_id, is_reachable)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                                 is_reachable: bool) -> None:
