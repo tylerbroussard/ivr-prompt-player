@@ -102,27 +102,22 @@ class PromptAnalyzer:
                             is_reachable: bool) -> None:
         """Process prompts specific to menu modules"""
         # If module is not reachable, all prompts are not in use
-        if not is_reachable:
-            for prompt_elem in module.findall('.//promptData/prompt'):
-                self._add_prompt(prompt_elem, module_name, module_id, False)
-            return
-
-        # Process main menu prompts
-        menu_prompts = {
-            'BH Sanitaire SVC Center Orders Menu v3': False,
-            'BH X Invalid Reroute': False,
-            'BH X Invalid Selection': True,
-            'BH X Please try again': True,
-            'BH X Transfer Prompt': False
-        }
+        menu_prompts = [
+            'BH Sanitaire SVC Center Orders Menu v3',
+            'BH X Invalid Reroute',
+            'BH X Invalid Selection',
+            'BH X Please try again',
+            'BH X Transfer Prompt'
+        ]
 
         for prompt in module.findall('.//promptData/prompt'):
             prompt_name = prompt.find('n')
             if prompt_name is not None and prompt_name.text in menu_prompts:
-                self._add_prompt(prompt, module_name, module_id, menu_prompts[prompt_name.text])
+                # Status depends on whether the menu module is reachable
+                self._add_prompt(prompt, module_name, module_id, is_reachable)
             else:
                 # For any other prompts, use the default logic
-                self._add_prompt(prompt, module_name, module_id, True)
+                self._add_prompt(prompt, module_name, module_id, is_reachable)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                                 is_reachable: bool) -> None:
