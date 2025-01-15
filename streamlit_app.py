@@ -119,38 +119,26 @@ class PromptAnalyzer:
                             is_reachable: bool) -> None:
         """Process prompts specific to menu modules"""
         # Process main menu prompts (on prompts tab)
-        main_paths = [
-            './/prompt/filePrompt/promptData/prompt',
-            './/filePrompt/promptData/prompt',
-            './/compoundPrompt/filePrompt/promptData/prompt'
-        ]
-        
-        for path in main_paths:
-            for prompt_container in module.findall(path):
-                self._add_prompt(prompt_container, module_name, module_id, is_reachable)
+        for prompt_container in module.findall('.//prompt/filePrompt/promptData/prompt'):
+            self._add_prompt(prompt_container, module_name, module_id, is_reachable)
         
         # Process event prompts (on events tab) - these are always marked as not in use
         # Look in both recoEvents/compoundPrompt and direct event prompts
         event_paths = [
-            './/recoEvents//compoundPrompt/filePrompt/promptData/prompt',
             './/recoEvents//multiLanguagesPromptItem/prompt',
             './/prompt/multiLanguagesPromptItem/prompt'
         ]
-        
+            
         for path in event_paths:
             for event_prompt in module.findall(path):
-                if path.endswith('/prompt'):
-                    # For multiLanguagesPromptItem, we need to look up the prompt by ID
-                    prompt_id = event_prompt.text
-                    # Find the corresponding prompt element in the XML
-                    for prompt_elem in self.root.findall('.//promptData/prompt'):
-                        id_elem = prompt_elem.find('id')
-                        if id_elem is not None and id_elem.text == prompt_id:
-                            self._add_prompt(prompt_elem, module_name, module_id, False)
-                            break
-                else:
-                    # For filePrompt structure, we can use the prompt directly
-                    self._add_prompt(event_prompt, module_name, module_id, False)
+                # For event prompts, we need to look up the prompt details by ID
+                prompt_id = event_prompt.text
+                # Find the corresponding prompt element in the XML by searching all prompts
+                for prompt_elem in self.root.findall('.//prompt'):
+                    id_elem = prompt_elem.find('.//id')
+                    if id_elem is not None and id_elem.text == prompt_id:
+                        self._add_prompt(prompt_elem, module_name, module_id, False)
+                        break
 
     def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, 
                    is_active: bool) -> None:
