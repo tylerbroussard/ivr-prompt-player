@@ -4,10 +4,10 @@ import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-def extract_prompts_from_xml(xml_file):
+def extract_prompts_from_xml(file_path):
     """Extract prompts and their status from XML content"""
     try:
-        tree = ET.parse(xml_file)
+        tree = ET.parse(file_path)
         root = tree.getroot()
         prompts_list = []
         
@@ -130,22 +130,34 @@ def main():
     
     st.title("Campaign Prompt Player")
     
-    # Add XML file uploader
-    uploaded_files = st.file_uploader(
-        "Upload IVR XML files",
-        type=['xml', 'five9ivr'],
-        accept_multiple_files=True,
-        help="Upload one or more Five9 IVR XML files to analyze prompts"
-    )
-    
-    # Process XML files if uploaded
+    # Read IVR files from repository
+    ivr_dir = "./ivr"  # Directory containing IVR files
     xml_data = pd.DataFrame()
-    if uploaded_files:
-        for file in uploaded_files:
-            df = extract_prompts_from_xml(file)
-            if df is not None:
-                df['Source File'] = file.name
-                xml_data = pd.concat([xml_data, df], ignore_index=True)
+    
+    try:
+        # Get all XML and five9ivr files from the directory
+        ivr_files = []
+        for ext in ['*.xml', '*.five9ivr']:
+            ivr_files.extend(Path(ivr_dir).glob(ext))
+        
+        if ivr_files:
+            for file_path in ivr_files:
+                df = extract_prompts_from_xml(file_path)
+                if df is not None:
+                    df['Source File'] = file_path.name
+                    xml_data = pd.concat([xml_data, df], ignore_index=True)
+            
+            if not xml_data.empty:
+                st.write("### Prompt Status from IVR Files")
+                st.dataframe(
+                    xml_data[['Name', 'ID', 'Module', 'Type', 'Status', 'Source File']],
+                    hide_index=True,
+                    use_container_width=True
+                )
+        else:
+            st.warning("No IVR files found in the repository. Please ensure IVR files are in the ./ivr directory.")
+    except Exception as e:
+        st.error(f"Error reading IVR files: {str(e)}")
         
         if not xml_data.empty:
             st.write("### Prompt Status from IVR Files")
