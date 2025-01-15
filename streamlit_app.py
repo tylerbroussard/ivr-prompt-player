@@ -3,28 +3,58 @@ import pandas as pd
 import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
+from typing import Dict, List, Set
 
-def is_module_disconnected(module: ET.Element) -> bool:
+def build_module_graph(root: ET.Element) -> Dict[str, List[str]]:
+    """Build a graph of module connections."""
+    graph = {}
+    
+    # Find all modules and their IDs
+    for module in root.findall('.//modules/*'):
+        module_id = module.find('moduleId')
+        if module_id is not None:
+            module_id = module_id.text
+            graph[module_id] = []
+            
+            # Add descendants
+            for tag in ['singleDescendant', 'exceptionalDescendant']:
+                for descendant in module.findall(f'./{tag}'):
+                    if descendant.text:
+                        graph[module_id].append(descendant.text)
+    
+    return graph
+
+def find_reachable_modules(graph: Dict[str, List[str]], start_module: str) -> Set[str]:
+    """Find all modules reachable from the start module using DFS."""
+    reachable = set()
+    stack = [start_module]
+    
+    while stack:
+        current = stack.pop()
+        if current not in reachable:
+            reachable.add(current)
+            stack.extend([neighbor for neighbor in graph.get(current, [])
+                        if neighbor not in reachable])
+    
+    return reachable
+
+def find_incoming_call_module(root: ET.Element) -> str:
+    """Find the moduleId of the incomingCall module."""
+    # Look for any module with tag 'incomingCall'
+    incoming_call = root.find('.//modules/incomingCall/moduleId')
+    if incoming_call is not None:
+        return incoming_call.text
+    return None
+
+def is_module_disconnected(module: ET.Element, reachable_modules: Set[str]) -> bool:
     """
-    Determine if a module is disconnected by checking its connections.
-    A module is considered disconnected if all its connections reference only itself.
+    Determine if a module is disconnected by checking if it's reachable from IncomingCall.
     """
     module_id = module.find('moduleId')
     if module_id is None:
-        return False
+        return True
     
-    module_id = module_id.text
-    
-    # Collect all connection references
-    connections = []
-    for tag in ['ascendants', 'singleDescendant', 'exceptionalDescendant']:
-        for conn in module.findall(f'./{tag}'):
-            if conn.text and conn.text.strip():
-                connections.append(conn.text)
-    
-    # If there are no connections, or all connections reference the module's own ID,
-    # then it's disconnected
-    return len(connections) == 0 or all(conn == module_id for conn in connections)
+    return module_id.text not in reachable_modules
 
 def extract_prompts_from_xml(file_path):
     """Extract prompts and their status from XML content"""
@@ -33,25 +63,39 @@ def extract_prompts_from_xml(file_path):
         root = tree.getroot()
         prompts_list = []
         
+        # Build the module graph
+        graph = build_module_graph(root)
+        
+        # Find IncomingCall module by tag
+        incoming_call_id = find_incoming_call_module(root)
+        if incoming_call_id is not None:
+            reachable_modules = find_reachable_modules(graph, incoming_call_id)
+        else:
+            st.warning(f"No incoming call module found in {file_path}")
+            reachable_modules = set()
+        
         # First, find all announcement prompts and their enabled status
         announcement_prompts = {}
         for skill_transfer in root.findall('.//skillTransfer'):
-            for announcement in skill_transfer.findall('.//announcements'):
-                enabled = announcement.find('enabled')
-                prompt = announcement.find('prompt')
-                if prompt is not None and enabled is not None:
-                    prompt_id = prompt.find('id')
-                    if prompt_id is not None:
-                        announcement_prompts[prompt_id.text] = {
-                            'enabled': enabled.text.lower() == 'true'
-                        }
+            # Only process if the skill transfer module is reachable
+            module_id = skill_transfer.find('moduleId')
+            if module_id is not None and module_id.text in reachable_modules:
+                for announcement in skill_transfer.findall('.//announcements'):
+                    enabled = announcement.find('enabled')
+                    prompt = announcement.find('prompt')
+                    if prompt is not None and enabled is not None:
+                        prompt_id = prompt.find('id')
+                        if prompt_id is not None:
+                            announcement_prompts[prompt_id.text] = {
+                                'enabled': enabled.text.lower() == 'true'
+                            }
         
         # Iterate through each module
         for module in root.findall('.//modules/*'):
             module_name = module.find('moduleName')
             
-            # Check if module is disconnected
-            is_disconnected = is_module_disconnected(module)
+            # Check if module is disconnected from IncomingCall
+            is_disconnected = is_module_disconnected(module, reachable_modules)
             
             if module_name is not None:
                 module_name = module_name.text
@@ -76,10 +120,13 @@ def extract_prompts_from_xml(file_path):
                             # For play modules, use connectivity status
                             if module.tag == 'play':
                                 enabled = not is_disconnected
-                            # For announcements, use the enabled status
+                            # For announcements, use the enabled status and check reachability
                             elif is_announcement:
                                 enabled = announcement_prompts[prompt_id.text]['enabled']
-                            # For other types, consider enabled if module is connected
+                                # If module is not reachable, override enabled status
+                                if is_disconnected:
+                                    enabled = False
+                            # For other types, consider enabled if module is connected and reachable
                             else:
                                 enabled = not is_disconnected
                                 
