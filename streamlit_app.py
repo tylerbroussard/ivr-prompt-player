@@ -131,7 +131,7 @@ def main():
     st.title("Campaign Prompt Player")
     
     # Read IVR files from repository
-    ivr_dir = "./ivr"  # Directory containing IVR files
+    ivr_dir = "./IVRs"  # Directory containing IVR files
     xml_data = pd.DataFrame()
     
     try:
