@@ -113,10 +113,32 @@ class PromptAnalyzer:
             for prompt_elem in module.findall('.//promptData/prompt'):
                 self._add_prompt(prompt_elem, module_name, module_id, False)
             return
+
+        # Process all prompts in the module
+        processed_prompts = set()
+        
+        # First process recoEvents prompts
+        for reco_event in module.findall('.//recoEvents'):
+            event_count = reco_event.find('count')
+            action = reco_event.find('action')
             
-        # If module is reachable, all prompts in it are considered in use
-        for prompt_elem in module.findall('.//promptData/prompt'):
-            self._add_prompt(prompt_elem, module_name, module_id, True)
+            if event_count is not None and action is not None:
+                count = int(event_count.text)
+                action_text = action.text
+                
+                for prompt_elem in reco_event.findall('.//promptData/prompt'):
+                    prompt_id = prompt_elem.find('id')
+                    if prompt_id is not None:
+                        processed_prompts.add(prompt_id.text)
+                        # A prompt is in use if it's used in first attempt reprompts
+                        is_active = count == 1 and action_text == 'REPROMPT'
+                        self._add_prompt(prompt_elem, module_name, module_id, is_active)
+        
+        # Then process main menu prompts
+        for prompt_elem in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
+            prompt_id = prompt_elem.find('id')
+            if prompt_id is not None and prompt_id.text not in processed_prompts:
+                self._add_prompt(prompt_elem, module_name, module_id, False)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                                 is_reachable: bool) -> None:
