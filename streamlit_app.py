@@ -64,38 +64,69 @@ def find_all_prompts_in_module(module: ET.Element, module_name: str, module_id: 
     """Extract all prompts from a module, including those in recoEvents"""
     prompts = []
     
-    # Find all prompt elements, regardless of their location in the XML
-    for elem in module.findall('.//'):
-        if elem.tag == 'prompt' and elem.find('id') is not None and elem.find('name') is not None:
+    if module.tag == 'menu':
+        # Handle menu recoEvents prompts
+        for reco_event in module.findall('.//recoEvents'):
+            for prompt_data in reco_event.findall('.//promptData/prompt'):
+                prompt_id = prompt_data.find('id')
+                prompt_name = prompt_data.find('name')
+                if prompt_id is not None and prompt_name is not None:
+                    prompts.append({
+                        'ID': prompt_id.text,
+                        'Name': prompt_name.text,
+                        'Module': module_name,
+                        'ModuleID': module_id,
+                        'Type': 'Play',
+                        'Status': '❌ Not In Use' if is_disconnected else '✅ In Use'
+                    })
+        
+        # Handle main menu prompt
+        for prompt_data in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
+            prompt_id = prompt_data.find('id')
+            prompt_name = prompt_data.find('name')
+            if prompt_id is not None and prompt_name is not None:
+                prompts.append({
+                    'ID': prompt_id.text,
+                    'Name': prompt_name.text,
+                    'Module': module_name,
+                    'ModuleID': module_id,
+                    'Type': 'Play',
+                    'Status': '❌ Not In Use' if is_disconnected else '✅ In Use'
+                })
+                
+    else:
+        # Handle other module types
+        # Find all prompt elements, regardless of their location in the XML
+        for elem in module.findall('.//prompt'):
             prompt_id = elem.find('id')
             prompt_name = elem.find('name')
-            
-            # Check if this is an announcement prompt
-            is_announcement = False
-            parent = elem.getparent()
-            while parent is not None:
-                if parent.tag == 'announcements':
-                    is_announcement = True
-                    enabled_elem = parent.find('enabled')
-                    enabled = enabled_elem is not None and enabled_elem.text.lower() == 'true'
-                    break
-                parent = parent.getparent()
-            
-            if is_announcement:
-                if is_disconnected:
-                    enabled = False
-            else:
-                enabled = not is_disconnected
+            if prompt_id is not None and prompt_name is not None:
+                # Check if this is an announcement prompt
+                is_announcement = False
+                parent = elem.getparent()
+                while parent is not None:
+                    if parent.tag == 'announcements':
+                        is_announcement = True
+                        enabled_elem = parent.find('enabled')
+                        enabled = enabled_elem is not None and enabled_elem.text.lower() == 'true'
+                        break
+                    parent = parent.getparent()
                 
-            prompts.append({
-                'ID': prompt_id.text,
-                'Name': prompt_name.text,
-                'Module': module_name,
-                'ModuleID': module_id,
-                'Type': 'Announcement' if is_announcement else 'Play',
-                'Status': ('✅ Enabled' if enabled else '❌ Disabled') if is_announcement 
-                         else ('✅ In Use' if enabled else '❌ Not In Use')
-            })
+                if is_announcement:
+                    if is_disconnected:
+                        enabled = False
+                else:
+                    enabled = not is_disconnected
+                    
+                prompts.append({
+                    'ID': prompt_id.text,
+                    'Name': prompt_name.text,
+                    'Module': module_name,
+                    'ModuleID': module_id,
+                    'Type': 'Announcement' if is_announcement else 'Play',
+                    'Status': ('✅ Enabled' if enabled else '❌ Disabled') if is_announcement 
+                             else ('✅ In Use' if enabled else '❌ Not In Use')
+                })
     
     return prompts
 
