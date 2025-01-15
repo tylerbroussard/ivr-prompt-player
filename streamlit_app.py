@@ -95,11 +95,6 @@ class PromptAnalyzer:
         
         # For menu modules, check if the module itself is reachable
         if module.tag == 'menu':
-            # If module is not reachable, mark all its prompts as not in use
-            if not is_reachable:
-                for prompt_elem in module.findall('.//promptData/prompt'):
-                    self._add_prompt(prompt_elem, module_name.text, module_id.text, False)
-                return
             self._process_menu_prompts(module, module_name.text, module_id.text, is_reachable)
         else:
             self._process_standard_prompts(module, module_name.text, module_id.text, is_reachable)
@@ -140,8 +135,7 @@ class PromptAnalyzer:
                     if parent is not None and parent.tag in ['recoEvents', 'prompts']:
                         parent_elements.append(parent.tag)
                 
-                # If the prompt is in recoEvents, it's an error/help prompt
-                # These should be marked as not in use if the module is not reachable
+                # If the prompt is in recoEvents, it's an error/help prompt - always mark as not in use
                 if 'recoEvents' in parent_elements:
                     self._add_prompt(prompt_container, module_name, module_id, False)
                 else:
