@@ -239,12 +239,13 @@ def create_audio_player(prompt_name: str) -> None:
     st.text(f"Looking for: {filenames[0]} or {filenames[1]}")
 
 def main():
+    st.set_page_config(page_title="Campaign Prompt Player", layout="wide")
+    
     print("Starting application...")  # Basic print to see if we're running
     st.write("Starting application...")  # Streamlit write to see if UI is working
     print(f"Current working directory: {os.getcwd()}")  # Print current directory
     st.write(f"Current working directory: {os.getcwd()}")  # Show current directory in UI
     
-    st.set_page_config(page_title="Campaign Prompt Player", layout="wide")
     st.title("Campaign Prompt Player")
     
     # Load campaign mapping data
@@ -257,7 +258,12 @@ def main():
     
     try:
         st.write("Looking for IVR files...")  # Debug print
-        ivr_files = list(Path('.').glob('*.five9ivr')) + list(Path('.').glob('*.xml'))
+        # Look in both current directory and ./IVRs
+        ivr_files = (list(Path('.').glob('*.five9ivr')) + 
+                    list(Path('.').glob('*.xml')) +
+                    list(Path('./IVRs').glob('*.five9ivr')) + 
+                    list(Path('./IVRs').glob('*.xml')))
+        
         st.write(f"Found IVR files: {[str(f) for f in ivr_files]}")  # Debug print
         
         if ivr_files:
