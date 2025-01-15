@@ -9,37 +9,32 @@ def build_module_graph(root: ET.Element) -> Dict[str, List[str]]:
     """Build a graph of module connections."""
     graph = {}
     
-    # Find all modules and their IDs
+    # First pass: initialize all modules
+    for module in root.findall('.//modules/*'):
+        module_id = module.find('moduleId')
+        if module_id is not None:
+            graph[module_id.text] = set()  # Using set to avoid duplicates
+            
+    # Second pass: build connections
     for module in root.findall('.//modules/*'):
         module_id = module.find('moduleId')
         if module_id is not None:
             module_id = module_id.text
-            graph[module_id] = []
             
             # Add descendants from branches in case modules
             branches = module.findall('.//branches/entry/value/desc')
             for branch in branches:
                 if branch is not None and branch.text:
-                    graph[module_id].append(branch.text)
+                    graph[module_id].add(branch.text)
             
             # Add direct descendants
             for tag in ['singleDescendant', 'exceptionalDescendant']:
                 for descendant in module.findall(f'./{tag}'):
                     if descendant.text:
-                        graph[module_id].append(descendant.text)
-                        
-            # Look for 'ascendants' elements - these create reverse connections
-            ascendants = module.findall('./ascendants')
-            for ascendant in ascendants:
-                if ascendant.text:
-                    # Create or get the list for the ascendant
-                    if ascendant.text not in graph:
-                        graph[ascendant.text] = []
-                    # Add this module as a descendant of its ascendant
-                    if module_id not in graph[ascendant.text]:
-                        graph[ascendant.text].append(module_id)
+                        graph[module_id].add(descendant.text)
     
-    return graph
+    # Convert sets to lists for final output
+    return {k: list(v) for k, v in graph.items()}
 
 def find_reachable_modules(graph: Dict[str, List[str]], start_module: str) -> Set[str]:
     """Find all modules reachable from the start module using DFS."""
@@ -50,23 +45,15 @@ def find_reachable_modules(graph: Dict[str, List[str]], start_module: str) -> Se
         current = stack.pop()
         if current not in reachable:
             reachable.add(current)
-            stack.extend([neighbor for neighbor in graph.get(current, [])
-                        if neighbor not in reachable])
+            if current in graph:  # Check if the module exists in the graph
+                for neighbor in graph[current]:
+                    if neighbor not in reachable:
+                        stack.append(neighbor)
     
     return reachable
 
-def find_incoming_call_module(root: ET.Element) -> str:
-    """Find the moduleId of the incomingCall module."""
-    # Look for any module with tag 'incomingCall'
-    incoming_call = root.find('.//modules/incomingCall/moduleId')
-    if incoming_call is not None:
-        return incoming_call.text
-    return None
-
 def is_module_disconnected(module: ET.Element, reachable_modules: Set[str]) -> bool:
-    """
-    Determine if a module is disconnected by checking if it's reachable from IncomingCall.
-    """
+    """Determine if a module is disconnected by checking if it's reachable from IncomingCall."""
     module_id = module.find('moduleId')
     if module_id is None:
         return True
@@ -80,50 +67,38 @@ def extract_prompts_from_xml(file_path):
         root = tree.getroot()
         prompts_list = []
         
-        # Build the module graph
-        graph = build_module_graph(root)
-        
-        # Find IncomingCall module by tag
-        incoming_call_id = find_incoming_call_module(root)
-        if incoming_call_id is not None:
-            reachable_modules = find_reachable_modules(graph, incoming_call_id)
+        # Find IncomingCall module and build reachability graph
+        incoming_call = root.find('.//modules/incomingCall/moduleId')
+        if incoming_call is not None:
+            graph = build_module_graph(root)
+            reachable_modules = find_reachable_modules(graph, incoming_call.text)
         else:
             st.warning(f"No incoming call module found in {file_path}")
             reachable_modules = set()
-        
-        # First, find all announcement prompts and their enabled status
-        announcement_prompts = {}
-        for skill_transfer in root.findall('.//skillTransfer'):
-            # Only process if the skill transfer module is reachable
-            module_id = skill_transfer.find('moduleId')
-            if module_id is not None and module_id.text in reachable_modules:
-                for announcement in skill_transfer.findall('.//announcements'):
-                    enabled = announcement.find('enabled')
-                    prompt = announcement.find('prompt')
-                    if prompt is not None and enabled is not None:
-                        prompt_id = prompt.find('id')
-                        if prompt_id is not None:
-                            announcement_prompts[prompt_id.text] = {
-                                'enabled': enabled.text.lower() == 'true'
-                            }
-        
-        # Iterate through each module
+
+        # Process all modules to find prompts
         for module in root.findall('.//modules/*'):
+            # Check if this module is reachable from IncomingCall
+            is_disconnected = is_module_disconnected(module, reachable_modules)
+            module_id = module.find('moduleId')
             module_name = module.find('moduleName')
             
-            # Check if module is disconnected from IncomingCall
-            is_disconnected = is_module_disconnected(module, reachable_modules)
-            
-            if module_name is not None:
+            if module_name is not None and module_id is not None:
                 module_name = module_name.text
+                module_id = module_id.text
                 
-                # Find prompts in different possible locations
+                # Handle different types of prompts
                 prompt_locations = [
-                    './/filePrompt/promptData/prompt',
-                    './/announcements/prompt',
+                    # Main prompts
                     './/prompt/filePrompt/promptData/prompt',
+                    # Menu prompts
+                    './/prompts/prompt/filePrompt/promptData/prompt',
+                    # Error prompts
+                    './/recoEvents/compoundPrompt/filePrompt/promptData/prompt',
+                    # Compound prompts
                     './/compoundPrompt/filePrompt/promptData/prompt',
-                    './/promptData/prompt'
+                    # Announcement prompts
+                    './/announcements/prompt'
                 ]
                 
                 for location in prompt_locations:
@@ -131,26 +106,22 @@ def extract_prompts_from_xml(file_path):
                         prompt_id = prompt_elem.find('id')
                         prompt_name = prompt_elem.find('name')
                         if prompt_id is not None and prompt_name is not None:
-                            # Check if this prompt has announcement settings
-                            is_announcement = prompt_id.text in announcement_prompts
-                            
-                            # For play modules, use connectivity status
-                            if module.tag == 'play':
-                                enabled = not is_disconnected
-                            # For announcements, use the enabled status and check reachability
-                            elif is_announcement:
-                                enabled = announcement_prompts[prompt_id.text]['enabled']
-                                # If module is not reachable, override enabled status
+                            # For announcement prompts, check enabled status
+                            is_announcement = module.tag == 'skillTransfer' and 'announcements' in location
+                            if is_announcement:
+                                enabled_elem = prompt_elem.find('../enabled')
+                                enabled = enabled_elem is not None and enabled_elem.text.lower() == 'true'
+                                # Even if enabled, check if the module is reachable
                                 if is_disconnected:
                                     enabled = False
-                            # For other types, consider enabled if module is connected and reachable
                             else:
                                 enabled = not is_disconnected
-                                
+                            
                             prompts_list.append({
                                 'ID': prompt_id.text,
                                 'Name': prompt_name.text,
                                 'Module': module_name,
+                                'ModuleID': module_id,
                                 'Type': 'Announcement' if is_announcement else 'Play',
                                 'Status': ('✅ Enabled' if enabled else '❌ Disabled') if is_announcement 
                                          else ('✅ In Use' if enabled else '❌ Not In Use')
