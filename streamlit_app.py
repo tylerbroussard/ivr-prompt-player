@@ -28,16 +28,20 @@ class ModuleGraph:
             module_id = module.find('moduleId')
             if module_id is not None:
                 module_id = module_id.text
-                graph[module_id]  # Ensure the module exists in the graph
-                
                 # Add connections
                 for tag in ['singleDescendant', 'exceptionalDescendant']:
                     for conn in module.findall(f'./{tag}'):
-                        graph[module_id].add(conn.text)
+                        if conn.text:
+                            graph[module_id].add(conn.text)
                         
                 # Add reverse connections from ascendants
                 for conn in module.findall('./ascendants'):
-                    graph[conn.text].add(module_id)
+                    if conn.text:
+                        if module_id not in graph:
+                            graph[module_id] = set()
+                        if conn.text not in graph:
+                            graph[conn.text] = set()
+                        graph[conn.text].add(module_id)
         
         return graph
 
@@ -53,12 +57,8 @@ class ModuleGraph:
                 all_connections = []
                 for tag in ['ascendants', 'exceptionalDescendant', 'singleDescendant']:
                     connections = module.findall(f'./{tag}')
-                    all_connections.extend([conn.text for conn in connections])
+                    all_connections.extend([conn.text for conn in connections if conn.text])
                 
-                # Special case: skill transfer and announcement modules should not be considered disconnected
-                if module.tag in ['skillTransfer', 'announcements']:
-                    continue
-                    
                 # If all connections point to self, module is disconnected
                 if all_connections and all(conn == module_id for conn in all_connections):
                     disconnected.add(module_id)
@@ -185,33 +185,32 @@ class PromptAnalyzer:
         
         return pd.DataFrame(list(self.prompts.values()))
 
-def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
-    """Analyze an IVR file and return prompt information"""
+def process_ivr_file(file_path: str) -> pd.DataFrame:
+    """Process a single IVR file and return a DataFrame of prompts"""
     try:
         tree = ET.parse(file_path)
         root = tree.getroot()
         
-        # Create module graph
+        # Build module graph and analyze prompts
         module_graph = ModuleGraph(root)
-        
-        # Create prompt analyzer
         analyzer = PromptAnalyzer(module_graph)
         
-        # Process all modules
+        # Process each module
         for module in root.findall('.//modules/*'):
             analyzer.process_module(module)
         
-        # Get results
+        # Get results and add source file
         results = analyzer.get_results()
-        
-        # Add source file information
-        results['Source File'] = Path(file_path).name
-        
+        if not results.empty:
+            results['Source File'] = os.path.basename(file_path)
         return results
         
+    except ET.ParseError as e:
+        st.error(f"Error parsing {file_path}: {str(e)}")
+        return pd.DataFrame()
     except Exception as e:
-        logger.error(f"Error processing {file_path}: {str(e)}")
-        return None
+        st.error(f"Error processing {file_path}: {str(e)}")
+        return pd.DataFrame()
 
 def load_mapping_file() -> Optional[pd.DataFrame]:
     """Load and process the campaign mapping CSV file"""
@@ -257,8 +256,8 @@ def create_audio_player(prompt_name: str) -> None:
     st.text(f"Looking for: {filenames[0]} or {filenames[1]}")
 
 def main():
-    st.set_page_config(page_title="Campaign Prompt Player", layout="wide")
-    st.title("Campaign Prompt Player")
+    st.set_page_config(page_title="IVR Prompt Player", layout="wide")
+    st.title("IVR Prompt Player")
     
     # Load campaign mapping data
     mapping_df = load_mapping_file()
@@ -274,7 +273,7 @@ def main():
         
         if ivr_files:
             for file_path in ivr_files:
-                df = analyze_ivr_file(str(file_path))
+                df = process_ivr_file(str(file_path))
                 if df is not None:
                     prompt_status_df = pd.concat([prompt_status_df, df], ignore_index=True)
         
