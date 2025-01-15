@@ -293,24 +293,25 @@ def main():
     prompt_status_df = pd.DataFrame()
     
     try:
-        logger.info(f"Looking for IVR files in: {ivr_dir}")
         ivr_files = list(ivr_dir.glob('*.five9ivr')) + list(ivr_dir.glob('*.xml'))
         
         if ivr_files:
-            logger.info(f"Found {len(ivr_files)} IVR files")
             for file_path in ivr_files:
-                logger.info(f"Processing IVR file: {file_path}")
                 df = analyze_ivr_file(str(file_path))
                 if df is not None:
                     prompt_status_df = pd.concat([prompt_status_df, df], ignore_index=True)
-                else:
-                    logger.warning(f"Failed to process IVR file: {file_path}")
-        else:
-            logger.warning(f"No IVR files found in {ivr_dir}")
+        
+        if prompt_status_df.empty:
             st.warning("No IVR files found or processed successfully")
+            
+        # Debug output
+        if not prompt_status_df.empty:
+            st.write("### Debug Info")
+            st.write("Found prompts in IVR files:")
+            st.write(prompt_status_df[['Name', 'Status']].to_dict('records'))
+            
     except Exception as e:
         st.error(f"Error processing IVR files: {str(e)}")
-        logger.error("Error in IVR processing", exc_info=True)
     
     # Get unique campaigns
     campaigns = get_unique_campaigns(mapping_df)
@@ -347,6 +348,11 @@ def main():
     if not prompt_status_df.empty:
         prompt_status_df['NormalizedName'] = prompt_status_df['Name'].str.strip().str.lower()
     
+    # Debug output
+    st.write("### Campaign Prompts")
+    st.write("Prompts in selected campaign:")
+    st.write(campaign_prompts[['Prompt Name']].to_dict('records'))
+    
     for idx, row in campaign_prompts.iterrows():
         prompt_name = row['Prompt Name'].strip()
         normalized_name = prompt_name.lower()
@@ -357,9 +363,6 @@ def main():
             prompt_status = prompt_status_df[prompt_status_df['NormalizedName'] == normalized_name]
             if not prompt_status.empty:
                 status_info = prompt_status.iloc[0]['Status']
-                logger.info(f"Found status for prompt {prompt_name}: {status_info}")
-            else:
-                logger.warning(f"No status found for prompt {prompt_name}")
         
         with st.expander(f"{prompt_name} ({status_info})", expanded=True):
             create_audio_player(prompt_name)
