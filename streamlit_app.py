@@ -343,15 +343,23 @@ def main():
     # Display prompts with audio players and status
     st.markdown("### Campaign Prompts")
     
+    # Create a normalized version of prompt names for matching
+    if not prompt_status_df.empty:
+        prompt_status_df['NormalizedName'] = prompt_status_df['Name'].str.strip().str.lower()
+    
     for idx, row in campaign_prompts.iterrows():
-        prompt_name = row['Prompt Name']
+        prompt_name = row['Prompt Name'].strip()
+        normalized_name = prompt_name.lower()
         
         # Get status from prompt_status_df
         status_info = "Status Unknown"
         if not prompt_status_df.empty:
-            prompt_status = prompt_status_df[prompt_status_df['Name'] == prompt_name]
+            prompt_status = prompt_status_df[prompt_status_df['NormalizedName'] == normalized_name]
             if not prompt_status.empty:
                 status_info = prompt_status.iloc[0]['Status']
+                logger.info(f"Found status for prompt {prompt_name}: {status_info}")
+            else:
+                logger.warning(f"No status found for prompt {prompt_name}")
         
         with st.expander(f"{prompt_name} ({status_info})", expanded=True):
             create_audio_player(prompt_name)
