@@ -251,13 +251,19 @@ def main():
     prompt_status_df = pd.DataFrame()
     
     try:
+        st.write("Looking for IVR files...")  # Debug print
         ivr_files = list(Path('.').glob('*.five9ivr')) + list(Path('.').glob('*.xml'))
+        st.write(f"Found IVR files: {[str(f) for f in ivr_files]}")  # Debug print
         
         if ivr_files:
             for file_path in ivr_files:
+                st.write(f"Attempting to process: {file_path}")  # Debug print
                 df = analyze_ivr_file(str(file_path))
                 if df is not None:
+                    st.write(f"Successfully processed {file_path}")  # Debug print
                     prompt_status_df = pd.concat([prompt_status_df, df], ignore_index=True)
+                else:
+                    st.write(f"Failed to process {file_path}")  # Debug print
         
         if prompt_status_df.empty:
             st.warning("No IVR files found or processed successfully")
