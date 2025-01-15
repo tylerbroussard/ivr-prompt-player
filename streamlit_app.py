@@ -92,8 +92,13 @@ class PromptAnalyzer:
             
         is_reachable = self.module_graph.is_module_reachable(module_id.text)
         
-        # Process menu-specific prompts with special handling for recoEvents
+        # For menu modules, check if the module itself is reachable
         if module.tag == 'menu':
+            # If module is not reachable, mark all its prompts as not in use
+            if not is_reachable:
+                for prompt_elem in module.findall('.//promptData/prompt'):
+                    self._add_prompt(prompt_elem, module_name.text, module_id.text, False)
+                return
             self._process_menu_prompts(module, module_name.text, module_id.text, is_reachable)
         else:
             self._process_standard_prompts(module, module_name.text, module_id.text, is_reachable)
@@ -101,23 +106,9 @@ class PromptAnalyzer:
     def _process_menu_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                             is_reachable: bool) -> None:
         """Process prompts specific to menu modules"""
-        # If module is not reachable, all prompts are not in use
-        menu_prompts = [
-            'BH Sanitaire SVC Center Orders Menu v3',
-            'BH X Invalid Reroute',
-            'BH X Invalid Selection',
-            'BH X Please try again',
-            'BH X Transfer Prompt'
-        ]
-
+        # Process all prompts in the menu module
         for prompt in module.findall('.//promptData/prompt'):
-            prompt_name = prompt.find('n')
-            if prompt_name is not None and prompt_name.text in menu_prompts:
-                # Status depends on whether the menu module is reachable
-                self._add_prompt(prompt, module_name, module_id, is_reachable)
-            else:
-                # For any other prompts, use the default logic
-                self._add_prompt(prompt, module_name, module_id, is_reachable)
+            self._add_prompt(prompt, module_name, module_id, is_reachable)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                                 is_reachable: bool) -> None:
