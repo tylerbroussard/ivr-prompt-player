@@ -17,6 +17,7 @@ class ModuleGraph:
     def __init__(self, root: ET.Element):
         self.graph = self._build_graph(root)
         self.reachable_modules = set()
+        self.disconnected_modules = self._find_disconnected_modules(root)
         self._find_incoming_call(root)
 
     def _build_graph(self, root: ET.Element) -> Dict[str, Set[str]]:
@@ -53,6 +54,26 @@ class ModuleGraph:
         
         return graph
 
+    def _find_disconnected_modules(self, root: ET.Element) -> set:
+        """Find modules that are disconnected (all connections point to self)"""
+        disconnected = set()
+        
+        for module in root.findall('.//modules/*'):
+            if module.find('moduleId') is not None:
+                module_id = module.find('moduleId').text
+                
+                # Get all connections
+                all_connections = []
+                for tag in ['ascendants', 'exceptionalDescendant', 'singleDescendant']:
+                    connections = module.findall(f'./{tag}')
+                    all_connections.extend([conn.text for conn in connections])
+                
+                # If all connections point to self, module is disconnected
+                if all_connections and all(conn == module_id for conn in all_connections):
+                    disconnected.add(module_id)
+        
+        return disconnected
+
     def _find_incoming_call(self, root: ET.Element) -> None:
         """Find IncomingCall module and compute reachable modules"""
         incoming_call = root.find('.//modules/incomingCall/moduleId')
@@ -66,105 +87,96 @@ class ModuleGraph:
         stack = [start_module]
         while stack:
             current = stack.pop()
-            if current not in self.reachable_modules:
+            if current not in self.reachable_modules and current not in self.disconnected_modules:
                 self.reachable_modules.add(current)
                 for neighbor in self.graph[current]:
-                    if neighbor not in self.reachable_modules:
+                    if neighbor not in self.reachable_modules and neighbor not in self.disconnected_modules:
                         stack.append(neighbor)
 
     def is_module_reachable(self, module_id: str) -> bool:
-        """Check if a module is reachable from IncomingCall"""
-        return module_id in self.reachable_modules
+        """Check if a module is reachable (not disconnected)"""
+        return module_id not in self.disconnected_modules and module_id in self.reachable_modules
 
 class PromptAnalyzer:
     """Class to handle prompt analysis"""
     def __init__(self, module_graph: ModuleGraph):
         self.module_graph = module_graph
-        # Now the dictionary keys each prompt by (module_id, prompt_id, prompt_name)
         self.prompts = {}
-
-    def process_module(self, module: ET.Element) -> None:
+        self.announcement_prompts = {}
+        
+    def process_module(self, module: ET.Element):
         """Process prompts in a module"""
-        module_id = module.find('moduleId')
         module_name = module.find('moduleName')
+        module_id = module.find('moduleId')
         
-        if module_id is None or module_name is None:
-            return
+        if module_name is not None and module_id is not None:
+            module_name = module_name.text
+            module_id = module_id.text
+            is_reachable = self.module_graph.is_module_reachable(module_id)
             
-        is_reachable = self.module_graph.is_module_reachable(module_id.text)
-        
-        # Process menu-specific prompts with special handling for events
-        if module.tag == 'menu':
-            self._process_menu_prompts(module, module_name.text, module_id.text, is_reachable)
-        else:
-            self._process_standard_prompts(module, module_name.text, module_id.text, is_reachable)
-
-    def _process_menu_prompts(self, module: ET.Element, module_name: str, module_id: str, 
-                              is_reachable: bool) -> None:
-        """
-        Process prompts specific to menu modules, including:
-          - The 'Prompts' tab (promptData/prompt)
-          - The 'Events' tab (recoEvents/event/promptData/prompt)
-          - The 'Events' tab (recoEvents/event/compoundPrompt/filePrompt/promptData/prompt)
-        
-        If the menu module itself is not reachable, all prompts are marked as not in use.
-        All event prompts are always marked as not in use.
-        """
-        # Process prompts from the "Prompts" tab
-        for prompt in module.findall('.//promptData/prompt'):
-            self._add_prompt(prompt, module_name, module_id, is_reachable)
-
-        # Process prompts from the "Events" tab - all event prompts are not in use
-        for event_prompt in module.findall('.//recoEvents/event/promptData/prompt'):
-            self._add_prompt(event_prompt, module_name, module_id, False)
+            # First, find all announcement prompts and their enabled status
+            for announcement in module.findall('.//announcements'):
+                enabled = announcement.find('enabled')
+                prompt = announcement.find('prompt')
+                if prompt is not None and enabled is not None:
+                    prompt_id = prompt.find('id')
+                    if prompt_id is not None:
+                        self.announcement_prompts[prompt_id.text] = {
+                            'enabled': enabled.text.lower() == 'true'
+                        }
             
-        # Process prompts from compound events - all event prompts are not in use
-        for event_prompt in module.findall('.//recoEvents/event/compoundPrompt/filePrompt/promptData/prompt'):
-            self._add_prompt(event_prompt, module_name, module_id, False)
-
-    def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
-                                  is_reachable: bool) -> None:
-        """Process prompts in standard modules"""
-        # Process standard prompts
-        for prompt in module.findall('.//prompt/filePrompt/promptData/prompt'):
-            self._add_prompt(prompt, module_name, module_id, is_reachable)
+            # Process prompts in different possible locations
+            prompt_locations = [
+                './/filePrompt/promptData/prompt',
+                './/announcements/prompt',
+                './/prompt/filePrompt/promptData/prompt',
+                './/compoundPrompt/filePrompt/promptData/prompt',
+                './/promptData/prompt'
+            ]
             
-        # Process announcement prompts
-        for prompt in module.findall('.//announcements/prompt'):
-            self._add_prompt(prompt, module_name, module_id, is_reachable)
-
-    def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, 
-                    is_active: bool) -> None:
-        """Add a prompt to the prompts dictionary, keyed by (module_id, prompt_id, prompt_name)."""
+            for location in prompt_locations:
+                for prompt_elem in module.findall(location):
+                    self._add_prompt(prompt_elem, module_name, module_id, is_reachable)
+    
+    def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, is_reachable: bool):
+        """Add a prompt to the prompts dictionary"""
         prompt_id = prompt_elem.find('id')
         prompt_name = prompt_elem.find('name')
         
         if prompt_id is not None and prompt_name is not None:
             key = (module_id, prompt_id.text, prompt_name.text)
             
-            # Check if this prompt is in an event handler
+            # Check if this is an announcement prompt
+            is_announcement = prompt_id.text in self.announcement_prompts
+            enabled = self.announcement_prompts.get(prompt_id.text, {}).get('enabled', None)
+            
+            # If not an announcement prompt, status depends on module reachability
+            if enabled is None:
+                enabled = is_reachable
+            
+            # Add event suffix to module name if it's an event
             is_event = prompt_elem.find('../../recoEvents') is not None or \
                       prompt_elem.find('../../../recoEvents') is not None or \
                       prompt_elem.find('../../../../recoEvents') is not None
-            
-            # Add event suffix to module name if it's an event prompt
             module_display = f"{module_name} (Event)" if is_event else module_name
             
-            # Status depends on module reachability
-            status = '✅ In Use' if is_active else '❌ Not In Use'
-            
-            # Overwrite the dictionary entry to show module-specific usage
             self.prompts[key] = {
                 'ID': prompt_id.text,
                 'Name': prompt_name.text,
                 'Module': module_display,
                 'ModuleID': module_id,
-                'Type': 'Play',
-                'Status': status
+                'Type': 'Announcement' if is_announcement else 'Play',
+                'Status': '✅ Enabled' if enabled and is_announcement 
+                         else '❌ Disabled' if not enabled and is_announcement
+                         else '✅ In Use' if enabled 
+                         else '❌ Not In Use'
             }
-
+    
     def get_results(self) -> pd.DataFrame:
         """Convert prompts dictionary to a DataFrame"""
+        if not self.prompts:
+            return pd.DataFrame()
+        
         return pd.DataFrame(list(self.prompts.values()))
 
 def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
