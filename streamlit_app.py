@@ -130,6 +130,9 @@ def main():
     
     st.title("Campaign Prompt Player")
     
+    # Load mapping data
+    df = load_mapping_file()
+    
     # Read IVR files from repository
     ivr_dir = "./IVRs"  # Updated path
     xml_data = pd.DataFrame()
@@ -142,25 +145,32 @@ def main():
         
         if ivr_files:
             for file_path in ivr_files:
-                df = extract_prompts_from_xml(file_path)
-                if df is not None:
-                    df['Source File'] = file_path.name
-                    xml_data = pd.concat([xml_data, df], ignore_index=True)
+                df_xml = extract_prompts_from_xml(file_path)
+                if df_xml is not None:
+                    df_xml['Source File'] = file_path.name
+                    xml_data = pd.concat([xml_data, df_xml], ignore_index=True)
             
             if not xml_data.empty:
-                # Group by prompt ID to combine instances and determine final status
+                # Group by prompt ID to combine any duplicates
                 final_data = []
                 for name, group in xml_data.groupby(['ID', 'Name']):
                     prompt_id, prompt_name = name
                     is_announcement = (group['Type'] == 'Announcement').any()
                     
-                    # If it's an announcement and enabled anywhere, it's enabled
-                    if is_announcement:
-                        enabled = group['Enabled'].any()
-                        status = '✅ Enabled' if enabled else '❌ Disabled'
-                    else:
-                        enabled = group['Enabled'].any()
-                        status = '✅ In Use' if enabled else '❌ Not In Use'
+                    # Combine modules and take most permissive status
+                    modules = ', '.join(sorted(set(m.strip() for m in ','.join(group['Module'].fillna('')).split(','))))
+                    has_enabled = any('✅' in status for status in group['Status'])
+                    
+                    status = ('✅ Enabled' if has_enabled else '❌ Disabled') if is_announcement else ('✅ In Use' if has_enabled else '❌ Not In Use')
+                    
+                    final_data.append({
+                        'ID': prompt_id,
+                        'Name': prompt_name,
+                        'Module': modules,
+                        'Type': 'Announcement' if is_announcement else 'Play',
+                        'Status': status,
+                        'Source File': ', '.join(sorted(group['Source File'].unique()))
+                    })
                     
                     final_data.append({
                         'ID': prompt_id,
