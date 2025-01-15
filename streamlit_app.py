@@ -329,12 +329,6 @@ def main():
         ]
         
         if not relevant_prompt_rows.empty:
-            # Debug information
-            st.write(f"Debug for {prompt_name}:")
-            st.write("Module names:", relevant_prompt_rows['Module'].tolist())
-            st.write("Status values:", relevant_prompt_rows['Status'].tolist())
-            st.write("Source files:", relevant_prompt_rows['Source File'].tolist())
-            
             # Status depends on module reachability in the campaign's IVR
             is_in_use = any(status == '✅ In Use' for status in relevant_prompt_rows['Status'])
             status_info = '✅ In Use' if is_in_use else '❌ Not In Use'
