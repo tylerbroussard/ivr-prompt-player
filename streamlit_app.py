@@ -87,19 +87,38 @@ def extract_prompts_from_xml(file_path):
                 module_name = module_name.text
                 module_id = module_id.text
                 
-                # Handle different types of prompts
+# Process standard prompts
                 prompt_locations = [
                     # Main prompts
                     './/prompt/filePrompt/promptData/prompt',
                     # Menu prompts
                     './/prompts/prompt/filePrompt/promptData/prompt',
-                    # Error prompts
-                    './/recoEvents/compoundPrompt/filePrompt/promptData/prompt',
                     # Compound prompts
                     './/compoundPrompt/filePrompt/promptData/prompt',
                     # Announcement prompts
                     './/announcements/prompt'
                 ]
+                
+                # Process menu reco events separately
+                if module.tag == 'menu':
+                    for reco_event in module.findall('.//recoEvents'):
+                        event_count = reco_event.find('count')
+                        event_action = reco_event.find('action')
+                        
+                        # Process all prompts within this reco event
+                        for prompt_elem in reco_event.findall('.//promptData/prompt'):
+                            prompt_id = prompt_elem.find('id')
+                            prompt_name = prompt_elem.find('name')
+                            
+                            if prompt_id is not None and prompt_name is not None:
+                                prompts_list.append({
+                                    'ID': prompt_id.text,
+                                    'Name': prompt_name.text,
+                                    'Module': module_name,
+                                    'ModuleID': module_id,
+                                    'Type': 'Play',
+                                    'Status': '❌ Not In Use' if is_disconnected else '✅ In Use'
+                                })
                 
                 for location in prompt_locations:
                     for prompt_elem in module.findall(location):
