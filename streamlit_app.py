@@ -23,26 +23,17 @@ class ModuleGraph:
         """Build directed graph of module connections"""
         graph = defaultdict(set)
         
-        # Initialize all modules and track their types
-        module_types = {}
+        # Initialize all modules
         for module in root.findall('.//modules/*'):
             module_id = module.find('moduleId')
             if module_id is not None:
                 graph[module_id.text] = set()
-                module_types[module_id.text] = module.tag
         
         # Build connections
         for module in root.findall('.//modules/*'):
             module_id = module.find('moduleId')
             if module_id is not None:
                 current_id = module_id.text
-                
-                # Add branch descendants from menu items
-                if module.tag == 'menu':
-                    for item in module.findall('.//items/choice'):
-                        desc = item.find('desc')
-                        if desc is not None and desc.text:
-                            graph[current_id].add(desc.text)
                 
                 # Add branch descendants from branches/entry/value/desc
                 for branch in module.findall('.//branches/entry/value/desc'):
@@ -60,45 +51,30 @@ class ModuleGraph:
                     if ascendant is not None and ascendant.text:
                         graph[ascendant.text].add(current_id)
         
-        # Special handling: mark all modules that have no incoming connections as unreachable
-        # except for incomingCall modules
-        for module_id in graph:
-            has_incoming = any(module_id in descendants for descendants in graph.values())
-            if not has_incoming and module_types.get(module_id) != 'incomingCall':
-                # Add a special marker to indicate this module is disconnected
-                graph[module_id].add('__DISCONNECTED__')
-        
         return graph
 
     def _find_incoming_call(self, root: ET.Element) -> None:
         """Find IncomingCall module and compute reachable modules"""
         incoming_call = root.find('.//modules/incomingCall/moduleId')
         if incoming_call is not None:
-            logger.info(f"Found IncomingCall module: {incoming_call.text}")
             self._compute_reachable_modules(incoming_call.text)
         else:
             logger.warning("No IncomingCall module found")
-            
+
     def _compute_reachable_modules(self, start_module: str) -> None:
         """Compute all reachable modules using DFS"""
-        logger.info(f"Starting reachability computation from {start_module}")
         stack = [start_module]
         while stack:
             current = stack.pop()
             if current not in self.reachable_modules:
                 self.reachable_modules.add(current)
-                logger.info(f"Module {current} is reachable")
                 for neighbor in self.graph[current]:
-                    if neighbor != '__DISCONNECTED__' and neighbor not in self.reachable_modules:
-                        logger.info(f"Adding neighbor {neighbor} to stack")
+                    if neighbor not in self.reachable_modules:
                         stack.append(neighbor)
-        logger.info(f"Reachable modules: {self.reachable_modules}")
 
     def is_module_reachable(self, module_id: str) -> bool:
         """Check if a module is reachable from IncomingCall"""
-        is_reachable = module_id in self.reachable_modules and '__DISCONNECTED__' not in self.graph[module_id]
-        logger.info(f"Module {module_id} reachability: {is_reachable}")
-        return is_reachable
+        return module_id in self.reachable_modules
 
 class PromptAnalyzer:
     """Class to handle prompt analysis"""
@@ -115,7 +91,6 @@ class PromptAnalyzer:
             return
             
         is_reachable = self.module_graph.is_module_reachable(module_id.text)
-        logger.info(f"Processing module {module_name.text} (ID: {module_id.text}), reachable: {is_reachable}")
         
         # Process menu-specific prompts with special handling for recoEvents
         if module.tag == 'menu':
@@ -126,51 +101,50 @@ class PromptAnalyzer:
     def _process_menu_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                             is_reachable: bool) -> None:
         """Process prompts specific to menu modules"""
-        logger.info(f"Processing menu prompts for {module_name} (ID: {module_id})")
-        all_prompts = {}  # id -> (elem, is_active)
+        # If module is not reachable, all prompts are not in use
+        if not is_reachable:
+            for prompt_elem in module.findall('.//promptData/prompt'):
+                self._add_prompt(prompt_elem, module_name, module_id, False)
+            return
+            
+        # Process main menu prompts
+        for prompt in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
+            self._add_prompt(prompt, module_name, module_id, True)
+            
+        # Track seen prompts and their recoEvents context
+        prompt_contexts = {}
         
-        # Process main menu prompts first - these are in the prompts section
-        for prompt_elem in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
-            prompt_id = prompt_elem.find('id')
-            prompt_name = prompt_elem.find('n')
-            if prompt_id is not None and prompt_name is not None:
-                logger.info(f"Found main menu prompt: {prompt_name.text} (ID: {prompt_id.text})")
-                all_prompts[prompt_id.text] = (prompt_elem, False)
-        
-        # Process recoEvents prompts
+        # First pass: collect all prompts and their contexts
         for reco_event in module.findall('.//recoEvents'):
+            event_type = reco_event.find('event')
             event_count = reco_event.find('count')
             action = reco_event.find('action')
             
-            if event_count is not None and action is not None:
-                count = int(event_count.text)
-                action_text = action.text
-                logger.info(f"Processing recoEvent - count: {count}, action: {action_text}")
-                
-                # Find all prompts in this recoEvent - they can be in filePrompt or compoundPrompt
-                for prompt_elem in reco_event.findall('.//filePrompt/promptData/prompt'):
-                    prompt_id = prompt_elem.find('id')
-                    prompt_name = prompt_elem.find('n')
-                    if prompt_id is not None and prompt_name is not None:
-                        is_active = is_reachable and count == 1 and action_text == 'REPROMPT'
-                        logger.info(f"Found recoEvent prompt: {prompt_name.text} (ID: {prompt_id.text}), active: {is_active}")
-                        all_prompts[prompt_id.text] = (prompt_elem, is_active)
-                        
-                # Also check compoundPrompt/filePrompt paths
-                for prompt_elem in reco_event.findall('.//compoundPrompt/filePrompt/promptData/prompt'):
-                    prompt_id = prompt_elem.find('id')
-                    prompt_name = prompt_elem.find('n')
-                    if prompt_id is not None and prompt_name is not None:
-                        is_active = is_reachable and count == 1 and action_text == 'REPROMPT'
-                        logger.info(f"Found recoEvent compound prompt: {prompt_name.text} (ID: {prompt_id.text}), active: {is_active}")
-                        all_prompts[prompt_id.text] = (prompt_elem, is_active)
+            for prompt in reco_event.findall('.//promptData/prompt'):
+                prompt_id = prompt.find('id')
+                if prompt_id is not None:
+                    context = {
+                        'event': event_type.text if event_type is not None else 'unknown',
+                        'count': int(event_count.text) if event_count is not None else 0,
+                        'action': action.text if action is not None else 'unknown'
+                    }
+                    if prompt_id.text not in prompt_contexts:
+                        prompt_contexts[prompt_id.text] = []
+                    prompt_contexts[prompt_id.text].append(context)
         
-        # Add all prompts to the result
-        for prompt_elem, is_active in all_prompts.values():
-            prompt_name = prompt_elem.find('n')
-            if prompt_name is not None:
-                logger.info(f"Adding prompt to results: {prompt_name.text}, active: {is_active}")
-            self._add_prompt(prompt_elem, module_name, module_id, is_active)
+        # Second pass: process prompts with their full context
+        for prompt_id, contexts in prompt_contexts.items():
+            # Find the prompt element
+            prompt_elem = module.find(f'.//promptData/prompt[id="{prompt_id}"]')
+            if prompt_elem is not None:
+                # A prompt is only truly "in use" if it's part of the main flow
+                # Prompts in error handling (count > 1) or exit actions are considered not in use
+                is_active = any(
+                    context['count'] == 1 and 
+                    context['action'] == 'REPROMPT' 
+                    for context in contexts
+                )
+                self._add_prompt(prompt_elem, module_name, module_id, is_active)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                                 is_reachable: bool) -> None:
@@ -182,12 +156,11 @@ class PromptAnalyzer:
                    is_active: bool) -> None:
         """Add a prompt to the prompts dictionary"""
         prompt_id = prompt_elem.find('id')
-        prompt_name = prompt_elem.find('n')
+        prompt_name = prompt_elem.find('name')
         
         if prompt_id is not None and prompt_name is not None:
             key = (prompt_id.text, prompt_name.text)
             status = '✅ In Use' if is_active else '❌ Not In Use'
-            logger.info(f"Adding prompt to dictionary: {prompt_name.text} with status {status}")
             
             # Only update if not exists or if new status is "in use"
             if key not in self.prompts or status == '✅ In Use':
@@ -232,14 +205,14 @@ def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
         logger.error(f"Error processing {file_path}: {str(e)}")
         return None
 
-def load_mapping_file(mapping_file: Path) -> Optional[pd.DataFrame]:
+def load_mapping_file() -> Optional[pd.DataFrame]:
     """Load and process the campaign mapping CSV file"""
     try:
-        df = pd.read_csv(mapping_file)
+        df = pd.read_csv("prompt_campaign_mapping.csv")
         df['Associated Campaigns'] = df['Associated Campaigns'].str.split(',')
         return df
     except FileNotFoundError:
-        st.error(f"prompt_campaign_mapping.csv not found at {mapping_file}")
+        st.error("prompt_campaign_mapping.csv not found in the current directory")
         return None
     except Exception as e:
         st.error(f"Error reading mapping file: {str(e)}")
@@ -279,21 +252,17 @@ def main():
     st.set_page_config(page_title="Campaign Prompt Player", layout="wide")
     st.title("Campaign Prompt Player")
     
-    # Get repository root directory
-    repo_root = Path(__file__).parent
-    
     # Load campaign mapping data
-    mapping_file = repo_root / "prompt_campaign_mapping.csv"
-    mapping_df = load_mapping_file(mapping_file)
+    mapping_df = load_mapping_file()
     if mapping_df is None:
         return
     
     # Process IVR files to get prompt statuses
-    ivr_dir = repo_root / "IVRs"
+    ivr_dir = "./IVRs"
     prompt_status_df = pd.DataFrame()
     
     try:
-        ivr_files = list(ivr_dir.glob('*.five9ivr')) + list(ivr_dir.glob('*.xml'))
+        ivr_files = list(Path(ivr_dir).glob('*.five9ivr')) + list(Path(ivr_dir).glob('*.xml'))
         
         if ivr_files:
             for file_path in ivr_files:
@@ -303,15 +272,9 @@ def main():
         
         if prompt_status_df.empty:
             st.warning("No IVR files found or processed successfully")
-            
-        # Debug output
-        if not prompt_status_df.empty:
-            st.write("### Debug Info")
-            st.write("Found prompts in IVR files:")
-            st.write(prompt_status_df[['Name', 'Status']].to_dict('records'))
-            
     except Exception as e:
         st.error(f"Error processing IVR files: {str(e)}")
+        logger.error("Error in IVR processing", exc_info=True)
     
     # Get unique campaigns
     campaigns = get_unique_campaigns(mapping_df)
@@ -344,23 +307,13 @@ def main():
     # Display prompts with audio players and status
     st.markdown("### Campaign Prompts")
     
-    # Create a normalized version of prompt names for matching
-    if not prompt_status_df.empty:
-        prompt_status_df['NormalizedName'] = prompt_status_df['Name'].str.strip().str.lower()
-    
-    # Debug output
-    st.write("### Campaign Prompts")
-    st.write("Prompts in selected campaign:")
-    st.write(campaign_prompts[['Prompt Name']].to_dict('records'))
-    
     for idx, row in campaign_prompts.iterrows():
-        prompt_name = row['Prompt Name'].strip()
-        normalized_name = prompt_name.lower()
+        prompt_name = row['Prompt Name']
         
         # Get status from prompt_status_df
         status_info = "Status Unknown"
         if not prompt_status_df.empty:
-            prompt_status = prompt_status_df[prompt_status_df['NormalizedName'] == normalized_name]
+            prompt_status = prompt_status_df[prompt_status_df['Name'] == prompt_name]
             if not prompt_status.empty:
                 status_info = prompt_status.iloc[0]['Status']
         
