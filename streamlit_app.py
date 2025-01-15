@@ -284,22 +284,27 @@ def main():
     # Display prompts with audio players and status
     st.markdown("### Campaign Prompts")
     
-    # Because we're now storing multiple rows per prompt name, you may see duplicates
-    # if a prompt is used in multiple modules. You can decide how to handle that.
     for idx, row in campaign_prompts.iterrows():
         prompt_name = row['Prompt Name']
         
         # Get relevant rows from prompt_status_df by the prompt name
-        # (You could also filter on prompt_id if that is consistent in your CSV)
         relevant_prompt_rows = prompt_status_df[prompt_status_df['Name'] == prompt_name]
         
         if not relevant_prompt_rows.empty:
-            # Show each row's status for the module
-            for _, prompt_row in relevant_prompt_rows.iterrows():
-                module_id = prompt_row['ModuleID']
-                status_info = prompt_row['Status']
-                with st.expander(f"{prompt_name} ({module_id}) → {status_info}", expanded=False):
-                    create_audio_player(prompt_name)
+            # A prompt is considered "in use" if it's reachable in ANY module
+            is_in_use = any(status == '✅ In Use' for status in relevant_prompt_rows['Status'])
+            status_info = '✅ In Use' if is_in_use else '❌ Not In Use'
+            
+            # Get a list of modules where this prompt appears
+            modules = relevant_prompt_rows['Module'].unique()
+            
+            with st.expander(f"{prompt_name} ({status_info})", expanded=False):
+                st.write("**Found in modules:**")
+                for module in modules:
+                    module_rows = relevant_prompt_rows[relevant_prompt_rows['Module'] == module]
+                    module_status = '✅' if any(status == '✅ In Use' for status in module_rows['Status']) else '❌'
+                    st.write(f"{module_status} {module}")
+                create_audio_player(prompt_name)
         else:
             # If we don't have any status info for this prompt name
             with st.expander(f"{prompt_name} (No Status Found)", expanded=False):
