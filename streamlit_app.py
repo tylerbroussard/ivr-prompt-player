@@ -74,26 +74,31 @@ class ModuleGraph:
         """Find IncomingCall module and compute reachable modules"""
         incoming_call = root.find('.//modules/incomingCall/moduleId')
         if incoming_call is not None:
+            logger.info(f"Found IncomingCall module: {incoming_call.text}")
             self._compute_reachable_modules(incoming_call.text)
         else:
             logger.warning("No IncomingCall module found")
-
+            
     def _compute_reachable_modules(self, start_module: str) -> None:
         """Compute all reachable modules using DFS"""
+        logger.info(f"Starting reachability computation from {start_module}")
         stack = [start_module]
         while stack:
             current = stack.pop()
             if current not in self.reachable_modules:
                 self.reachable_modules.add(current)
+                logger.info(f"Module {current} is reachable")
                 for neighbor in self.graph[current]:
-                    # Skip modules marked as disconnected
                     if neighbor != '__DISCONNECTED__' and neighbor not in self.reachable_modules:
+                        logger.info(f"Adding neighbor {neighbor} to stack")
                         stack.append(neighbor)
+        logger.info(f"Reachable modules: {self.reachable_modules}")
 
     def is_module_reachable(self, module_id: str) -> bool:
         """Check if a module is reachable from IncomingCall"""
-        # A module is not reachable if it's disconnected or not in reachable_modules
-        return module_id in self.reachable_modules and '__DISCONNECTED__' not in self.graph[module_id]
+        is_reachable = module_id in self.reachable_modules and '__DISCONNECTED__' not in self.graph[module_id]
+        logger.info(f"Module {module_id} reachability: {is_reachable}")
+        return is_reachable
 
 class PromptAnalyzer:
     """Class to handle prompt analysis"""
@@ -110,6 +115,7 @@ class PromptAnalyzer:
             return
             
         is_reachable = self.module_graph.is_module_reachable(module_id.text)
+        logger.info(f"Processing module {module_name.text} (ID: {module_id.text}), reachable: {is_reachable}")
         
         # Process menu-specific prompts with special handling for recoEvents
         if module.tag == 'menu':
@@ -120,13 +126,15 @@ class PromptAnalyzer:
     def _process_menu_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                             is_reachable: bool) -> None:
         """Process prompts specific to menu modules"""
-        # Find all prompts in the module
+        logger.info(f"Processing menu prompts for {module_name} (ID: {module_id})")
         all_prompts = {}  # id -> (elem, is_active)
         
         # Process main menu prompts first
         for prompt_elem in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
             prompt_id = prompt_elem.find('id')
-            if prompt_id is not None:
+            prompt_name = prompt_elem.find('name')
+            if prompt_id is not None and prompt_name is not None:
+                logger.info(f"Found main menu prompt: {prompt_name.text} (ID: {prompt_id.text})")
                 all_prompts[prompt_id.text] = (prompt_elem, False)
         
         # Process recoEvents prompts
@@ -137,17 +145,21 @@ class PromptAnalyzer:
             if event_count is not None and action is not None:
                 count = int(event_count.text)
                 action_text = action.text
+                logger.info(f"Processing recoEvent - count: {count}, action: {action_text}")
                 
-                # Find all prompts in this recoEvent
                 for prompt_elem in reco_event.findall('.//promptData/prompt'):
                     prompt_id = prompt_elem.find('id')
-                    if prompt_id is not None:
-                        # Only mark as active if module is reachable AND it's a first attempt reprompt
+                    prompt_name = prompt_elem.find('name')
+                    if prompt_id is not None and prompt_name is not None:
                         is_active = is_reachable and count == 1 and action_text == 'REPROMPT'
+                        logger.info(f"Found recoEvent prompt: {prompt_name.text} (ID: {prompt_id.text}), active: {is_active}")
                         all_prompts[prompt_id.text] = (prompt_elem, is_active)
         
         # Add all prompts to the result
         for prompt_elem, is_active in all_prompts.values():
+            prompt_name = prompt_elem.find('name')
+            if prompt_name is not None:
+                logger.info(f"Adding prompt to results: {prompt_name.text}, active: {is_active}")
             self._add_prompt(prompt_elem, module_name, module_id, is_active)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
@@ -165,6 +177,7 @@ class PromptAnalyzer:
         if prompt_id is not None and prompt_name is not None:
             key = (prompt_id.text, prompt_name.text)
             status = '✅ In Use' if is_active else '❌ Not In Use'
+            logger.info(f"Adding prompt to dictionary: {prompt_name.text} with status {status}")
             
             # Only update if not exists or if new status is "in use"
             if key not in self.prompts or status == '✅ In Use':
