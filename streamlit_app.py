@@ -287,8 +287,11 @@ def main():
     for idx, row in campaign_prompts.iterrows():
         prompt_name = row['Prompt Name']
         
-        # Get relevant rows from prompt_status_df by the prompt name
-        relevant_prompt_rows = prompt_status_df[prompt_status_df['Name'] == prompt_name]
+        # Get relevant rows from prompt_status_df by the prompt name, but only from the current IVR file
+        relevant_prompt_rows = prompt_status_df[
+            (prompt_status_df['Name'] == prompt_name) & 
+            (prompt_status_df['Source File'] == 'AA Sanitaire SVC Center V1.1 - Studio - EBS Maintenance.five9ivr')
+        ]
         
         if not relevant_prompt_rows.empty:
             # A prompt is considered "in use" if it's reachable in ANY module
