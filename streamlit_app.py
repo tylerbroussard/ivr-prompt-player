@@ -129,22 +129,21 @@ class PromptAnalyzer:
                    is_active: bool) -> None:
         """Add a prompt to the prompts dictionary"""
         prompt_id = prompt_elem.find('id')
-        prompt_name = prompt_elem.find('name')
+        prompt_name = prompt_elem.find('n')  # Changed from 'name' to 'n' to match XML structure
         
         if prompt_id is not None and prompt_name is not None:
             key = (prompt_id.text, prompt_name.text)
             status = '✅ In Use' if is_active else '❌ Not In Use'
             
-            # Only update if not exists or if new status is "in use"
-            if key not in self.prompts or status == '✅ In Use':
-                self.prompts[key] = {
-                    'ID': prompt_id.text,
-                    'Name': prompt_name.text,
-                    'Module': module_name,
-                    'ModuleID': module_id,
-                    'Type': 'Play',
-                    'Status': status
-                }
+            # Always update the status based on the current module's reachability
+            self.prompts[key] = {
+                'ID': prompt_id.text,
+                'Name': prompt_name.text,
+                'Module': module_name,
+                'ModuleID': module_id,
+                'Type': 'Play',
+                'Status': status
+            }
 
     def get_results(self) -> pd.DataFrame:
         """Convert results to DataFrame"""
