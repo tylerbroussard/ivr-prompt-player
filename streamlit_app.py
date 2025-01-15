@@ -169,6 +169,7 @@ class PromptAnalyzer:
 def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
     """Analyze an IVR file and return prompt information"""
     try:
+        st.write(f"Processing file: {file_path}")  # Debug print
         tree = ET.parse(file_path)
         root = tree.getroot()
         
@@ -191,7 +192,7 @@ def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
         return results
         
     except Exception as e:
-        logger.error(f"Error processing {file_path}: {str(e)}")
+        st.error(f"Error processing {file_path}: {str(e)}")  # Direct error display
         return None
 
 def load_mapping_file() -> Optional[pd.DataFrame]:
