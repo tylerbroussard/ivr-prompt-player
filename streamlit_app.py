@@ -16,19 +16,28 @@ def build_module_graph(root: ET.Element) -> Dict[str, List[str]]:
             module_id = module_id.text
             graph[module_id] = []
             
-            # Find all branches (for case modules)
+            # Add descendants from branches in case modules
             branches = module.findall('.//branches/entry/value/desc')
-            if branches:
-                # Add all branch destinations
-                for branch in branches:
-                    if branch is not None and branch.text:
-                        graph[module_id].append(branch.text)
-            else:
-                # Add regular descendants if not a branching module
-                for tag in ['singleDescendant', 'exceptionalDescendant']:
-                    for descendant in module.findall(f'./{tag}'):
-                        if descendant.text:
-                            graph[module_id].append(descendant.text)
+            for branch in branches:
+                if branch is not None and branch.text:
+                    graph[module_id].append(branch.text)
+            
+            # Add direct descendants
+            for tag in ['singleDescendant', 'exceptionalDescendant']:
+                for descendant in module.findall(f'./{tag}'):
+                    if descendant.text:
+                        graph[module_id].append(descendant.text)
+                        
+            # Look for 'ascendants' elements - these create reverse connections
+            ascendants = module.findall('./ascendants')
+            for ascendant in ascendants:
+                if ascendant.text:
+                    # Create or get the list for the ascendant
+                    if ascendant.text not in graph:
+                        graph[ascendant.text] = []
+                    # Add this module as a descendant of its ascendant
+                    if module_id not in graph[ascendant.text]:
+                        graph[ascendant.text].append(module_id)
     
     return graph
 
