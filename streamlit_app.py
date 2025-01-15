@@ -46,10 +46,9 @@ class ModuleGraph:
                         if descendant is not None and descendant.text:
                             graph[current_id].add(descendant.text)
                             
-                # Add ascendants as edges pointing TO the current module
+                # Add ascendants for reverse lookup
                 for ascendant in module.findall('.//ascendants'):
                     if ascendant is not None and ascendant.text:
-                        # Create edge FROM ascendant TO current module
                         graph[ascendant.text].add(current_id)
         
         return graph
@@ -79,10 +78,10 @@ class ModuleGraph:
 
 class PromptAnalyzer:
     """Class to handle prompt analysis"""
-    def __init__(self, module_graph: ModuleGraph, root: ET.Element):
+    def __init__(self, module_graph: ModuleGraph):
         self.module_graph = module_graph
+        # Now the dictionary keys each prompt by (module_id, prompt_id, prompt_name)
         self.prompts = {}
-        self.root = root
 
     def process_module(self, module: ET.Element) -> None:
         """Process prompts in a module"""
@@ -94,82 +93,60 @@ class PromptAnalyzer:
             
         is_reachable = self.module_graph.is_module_reachable(module_id.text)
         
-        # For menu modules, check if the module itself is reachable
+        # Process menu-specific prompts with special handling for events
         if module.tag == 'menu':
             self._process_menu_prompts(module, module_name.text, module_id.text, is_reachable)
         else:
             self._process_standard_prompts(module, module_name.text, module_id.text, is_reachable)
 
-    def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
-                                is_reachable: bool) -> None:
-        """Process prompts in standard modules"""
-        # Search for prompts in all possible locations
-        prompt_paths = [
-            './/prompt/filePrompt/promptData/prompt',
-            './/filePrompt/promptData/prompt',
-            './/compoundPrompt/filePrompt/promptData/prompt',
-            './/promptData/prompt'
-        ]
-        
-        for path in prompt_paths:
-            for prompt in module.findall(path):
-                self._add_prompt(prompt, module_name, module_id, is_reachable)
-
     def _process_menu_prompts(self, module: ET.Element, module_name: str, module_id: str, 
-                            is_reachable: bool) -> None:
-        """Process prompts specific to menu modules"""
-        # Process main menu prompts (on prompts tab)
-        for prompt_container in module.findall('.//prompt/filePrompt/promptData/prompt'):
-            self._add_prompt(prompt_container, module_name, module_id, is_reachable)
-        
-        # Process event prompts (on events tab) - these are always marked as not in use
-        # Look in both recoEvents/compoundPrompt and direct event prompts
-        event_paths = [
-            './/recoEvents//multiLanguagesPromptItem/prompt',
-            './/prompt/multiLanguagesPromptItem/prompt'
-        ]
-            
-        for path in event_paths:
-            for event_prompt in module.findall(path):
-                # For event prompts, we need to look up the prompt details by ID
-                prompt_id = event_prompt.text
-                # Find the corresponding prompt element in the XML by searching all prompts
-                for prompt_elem in self.root.findall('.//prompt'):
-                    id_elem = prompt_elem.find('.//id')
-                    if id_elem is not None and id_elem.text == prompt_id:
-                        self._add_prompt(prompt_elem, module_name, module_id, False)
-                        break
+                              is_reachable: bool) -> None:
+        """
+        Process prompts specific to menu modules, including:
+          - The 'Prompts' tab (promptData/prompt)
+          - The 'Events' tab (recoEvents/event/promptData/prompt)
+        """
+        # Process prompts from the "Prompts" tab
+        for prompt in module.findall('.//promptData/prompt'):
+            self._add_prompt(prompt, module_name, module_id, is_reachable)
+
+        # Process prompts from the "Events" tab (e.g. No Input, No Match)
+        for event_prompt in module.findall('.//recoEvents/event/promptData/prompt'):
+            self._add_prompt(event_prompt, module_name, module_id, is_reachable)
+
+    def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
+                                  is_reachable: bool) -> None:
+        """Process prompts in standard modules"""
+        for prompt in module.findall('.//prompt/filePrompt/promptData/prompt'):
+            self._add_prompt(prompt, module_name, module_id, is_reachable)
 
     def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, 
-                   is_active: bool) -> None:
-        """Add a prompt to the prompts dictionary"""
-        # Handle prompts with direct id/name elements
-        prompt_id = prompt_elem.find('.//id')
-        prompt_name = prompt_elem.find('.//n')  # Changed from 'name' to 'n'
+                    is_active: bool) -> None:
+        """Add a prompt to the prompts dictionary, keyed by (module_id, prompt_id, prompt_name)."""
+        prompt_id = prompt_elem.find('id')
+        prompt_name = prompt_elem.find('name')
         
         if prompt_id is not None and prompt_name is not None:
-            key = (prompt_id.text, prompt_name.text)
+            key = (module_id, prompt_id.text, prompt_name.text)
             status = '✅ In Use' if is_active else '❌ Not In Use'
             
-            # Only update if not exists or if new status is "in use"
-            if key not in self.prompts or status == '✅ In Use':
-                self.prompts[key] = {
-                    'ID': prompt_id.text,
-                    'Name': prompt_name.text,
-                    'Module': module_name,
-                    'ModuleID': module_id,
-                    'Type': 'Play',
-                    'Status': status
-                }
+            # Overwrite the dictionary entry to show module-specific usage
+            self.prompts[key] = {
+                'ID': prompt_id.text,
+                'Name': prompt_name.text,
+                'Module': module_name,
+                'ModuleID': module_id,
+                'Type': 'Play',
+                'Status': status
+            }
 
     def get_results(self) -> pd.DataFrame:
-        """Convert results to DataFrame"""
+        """Convert prompts dictionary to a DataFrame"""
         return pd.DataFrame(list(self.prompts.values()))
 
 def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
     """Analyze an IVR file and return prompt information"""
     try:
-        st.write(f"Processing file: {file_path}")  # Debug print
         tree = ET.parse(file_path)
         root = tree.getroot()
         
@@ -177,7 +154,7 @@ def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
         module_graph = ModuleGraph(root)
         
         # Create prompt analyzer
-        analyzer = PromptAnalyzer(module_graph, root)
+        analyzer = PromptAnalyzer(module_graph)
         
         # Process all modules
         for module in root.findall('.//modules/*'):
@@ -192,7 +169,7 @@ def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
         return results
         
     except Exception as e:
-        st.error(f"Error processing {file_path}: {str(e)}")  # Direct error display
+        logger.error(f"Error processing {file_path}: {str(e)}")
         return None
 
 def load_mapping_file() -> Optional[pd.DataFrame]:
@@ -240,12 +217,6 @@ def create_audio_player(prompt_name: str) -> None:
 
 def main():
     st.set_page_config(page_title="Campaign Prompt Player", layout="wide")
-    
-    print("Starting application...")  # Basic print to see if we're running
-    st.write("Starting application...")  # Streamlit write to see if UI is working
-    print(f"Current working directory: {os.getcwd()}")  # Print current directory
-    st.write(f"Current working directory: {os.getcwd()}")  # Show current directory in UI
-    
     st.title("Campaign Prompt Player")
     
     # Load campaign mapping data
@@ -254,27 +225,17 @@ def main():
         return
     
     # Process IVR files to get prompt statuses
+    ivr_dir = "./IVRs"
     prompt_status_df = pd.DataFrame()
     
     try:
-        st.write("Looking for IVR files...")  # Debug print
-        # Look in both current directory and ./IVRs
-        ivr_files = (list(Path('.').glob('*.five9ivr')) + 
-                    list(Path('.').glob('*.xml')) +
-                    list(Path('./IVRs').glob('*.five9ivr')) + 
-                    list(Path('./IVRs').glob('*.xml')))
-        
-        st.write(f"Found IVR files: {[str(f) for f in ivr_files]}")  # Debug print
+        ivr_files = list(Path(ivr_dir).glob('*.five9ivr')) + list(Path(ivr_dir).glob('*.xml'))
         
         if ivr_files:
             for file_path in ivr_files:
-                st.write(f"Attempting to process: {file_path}")  # Debug print
                 df = analyze_ivr_file(str(file_path))
                 if df is not None:
-                    st.write(f"Successfully processed {file_path}")  # Debug print
                     prompt_status_df = pd.concat([prompt_status_df, df], ignore_index=True)
-                else:
-                    st.write(f"Failed to process {file_path}")  # Debug print
         
         if prompt_status_df.empty:
             st.warning("No IVR files found or processed successfully")
@@ -303,7 +264,10 @@ def main():
         st.metric("Prompts in Selected Campaign", len(campaign_prompts))
     with col2:
         if not prompt_status_df.empty:
-            inactive_count = len(prompt_status_df[prompt_status_df['Status'].str.contains('❌')])
+            # Since we are now capturing multiple rows per prompt (due to module-based key),
+            # "Inactive Prompts" might need more careful grouping logic if desired.
+            # For simplicity, we can still count how many are in "❌ Not In Use" overall:
+            inactive_count = len(prompt_status_df[prompt_status_df['Status'] == '❌ Not In Use'])
             st.metric("Inactive Prompts", inactive_count)
     
     # Display campaign details
@@ -313,18 +277,26 @@ def main():
     # Display prompts with audio players and status
     st.markdown("### Campaign Prompts")
     
+    # Because we're now storing multiple rows per prompt name, you may see duplicates
+    # if a prompt is used in multiple modules. You can decide how to handle that.
     for idx, row in campaign_prompts.iterrows():
         prompt_name = row['Prompt Name']
         
-        # Get status from prompt_status_df
-        status_info = "Status Unknown"
-        if not prompt_status_df.empty:
-            prompt_status = prompt_status_df[prompt_status_df['Name'] == prompt_name]
-            if not prompt_status.empty:
-                status_info = prompt_status.iloc[0]['Status']
+        # Get relevant rows from prompt_status_df by the prompt name
+        # (You could also filter on prompt_id if that is consistent in your CSV)
+        relevant_prompt_rows = prompt_status_df[prompt_status_df['Name'] == prompt_name]
         
-        with st.expander(f"{prompt_name} ({status_info})", expanded=True):
-            create_audio_player(prompt_name)
+        if not relevant_prompt_rows.empty:
+            # Show each row's status for the module
+            for _, prompt_row in relevant_prompt_rows.iterrows():
+                module_id = prompt_row['ModuleID']
+                status_info = prompt_row['Status']
+                with st.expander(f"{prompt_name} ({module_id}) → {status_info}", expanded=False):
+                    create_audio_player(prompt_name)
+        else:
+            # If we don't have any status info for this prompt name
+            with st.expander(f"{prompt_name} (No Status Found)", expanded=False):
+                create_audio_player(prompt_name)
 
 if __name__ == "__main__":
     main()
