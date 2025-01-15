@@ -297,9 +297,16 @@ def main():
         relevant_prompt_rows = prompt_status_df[prompt_status_df['Name'] == prompt_name]
         
         if not relevant_prompt_rows.empty:
-            # Prompt is in use if it's reachable in any module
-            is_in_use = any(status == '✅ In Use' for status in relevant_prompt_rows['Status'])
-            status_info = '✅ In Use' if is_in_use else '❌ Not In Use'
+            # Check if this prompt is used in any menu events
+            is_menu_event = any('recoEvents' in str(module) for module in relevant_prompt_rows['Module'])
+            
+            if is_menu_event:
+                # Menu event prompts are always not in use
+                status_info = '❌ Not In Use'
+            else:
+                # For non-event prompts, check if they're in use in any module
+                is_in_use = any(status == '✅ In Use' for status in relevant_prompt_rows['Status'])
+                status_info = '✅ In Use' if is_in_use else '❌ Not In Use'
             
             with st.expander(f"{prompt_name} ({status_info})", expanded=False):
                 create_audio_player(prompt_name)
