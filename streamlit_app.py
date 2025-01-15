@@ -4,6 +4,28 @@ import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+def is_module_disconnected(module: ET.Element) -> bool:
+    """
+    Determine if a module is disconnected by checking its connections.
+    A module is considered disconnected if all its connections reference only itself.
+    """
+    module_id = module.find('moduleId')
+    if module_id is None:
+        return False
+    
+    module_id = module_id.text
+    
+    # Collect all connection references
+    connections = []
+    for tag in ['ascendants', 'singleDescendant', 'exceptionalDescendant']:
+        for conn in module.findall(f'./{tag}'):
+            if conn.text and conn.text.strip():
+                connections.append(conn.text)
+    
+    # If there are no connections, or all connections reference the module's own ID,
+    # then it's disconnected
+    return len(connections) == 0 or all(conn == module_id for conn in connections)
+
 def extract_prompts_from_xml(file_path):
     """Extract prompts and their status from XML content"""
     try:
@@ -13,33 +35,23 @@ def extract_prompts_from_xml(file_path):
         
         # First, find all announcement prompts and their enabled status
         announcement_prompts = {}
-        for announcement in root.findall('.//announcements'):
-            enabled = announcement.find('enabled')
-            prompt = announcement.find('prompt')
-            if prompt is not None and enabled is not None:
-                prompt_id = prompt.find('id')
-                if prompt_id is not None:
-                    announcement_prompts[prompt_id.text] = {
-                        'enabled': enabled.text.lower() == 'true'
-                    }
+        for skill_transfer in root.findall('.//skillTransfer'):
+            for announcement in skill_transfer.findall('.//announcements'):
+                enabled = announcement.find('enabled')
+                prompt = announcement.find('prompt')
+                if prompt is not None and enabled is not None:
+                    prompt_id = prompt.find('id')
+                    if prompt_id is not None:
+                        announcement_prompts[prompt_id.text] = {
+                            'enabled': enabled.text.lower() == 'true'
+                        }
         
         # Iterate through each module
         for module in root.findall('.//modules/*'):
             module_name = module.find('moduleName')
             
             # Check if module is disconnected
-            is_disconnected = False
-            module_id = None
-            if module.find('moduleId') is not None:
-                module_id = module.find('moduleId').text
-                # If all connection IDs are the same as the module ID, it's disconnected
-                all_connections = []
-                for tag in ['ascendants', 'exceptionalDescendant', 'singleDescendant']:
-                    connections = module.findall(f'./{tag}')
-                    all_connections.extend([conn.text for conn in connections])
-                
-                if all_connections and all(conn == module_id for conn in all_connections):
-                    is_disconnected = True
+            is_disconnected = is_module_disconnected(module)
             
             if module_name is not None:
                 module_name = module_name.text
@@ -59,22 +71,30 @@ def extract_prompts_from_xml(file_path):
                         prompt_name = prompt_elem.find('name')
                         if prompt_id is not None and prompt_name is not None:
                             # Check if this prompt has announcement settings
-                            enabled = announcement_prompts.get(prompt_id.text, {}).get('enabled', None)
-                            # If not an announcement prompt, mark as In Use/Not In Use
-                            if enabled is None:
+                            is_announcement = prompt_id.text in announcement_prompts
+                            
+                            # For play modules, use connectivity status
+                            if module.tag == 'play':
                                 enabled = not is_disconnected
+                            # For announcements, use the enabled status
+                            elif is_announcement:
+                                enabled = announcement_prompts[prompt_id.text]['enabled']
+                            # For other types, consider enabled if module is connected
+                            else:
+                                enabled = not is_disconnected
+                                
                             prompts_list.append({
                                 'ID': prompt_id.text,
                                 'Name': prompt_name.text,
                                 'Module': module_name,
-                                'Type': 'Announcement' if prompt_id.text in announcement_prompts else 'Play',
-                                'Status': ('✅ Enabled' if enabled else '❌ Disabled') if prompt_id.text in announcement_prompts 
+                                'Type': 'Announcement' if is_announcement else 'Play',
+                                'Status': ('✅ Enabled' if enabled else '❌ Disabled') if is_announcement 
                                          else ('✅ In Use' if enabled else '❌ Not In Use')
                             })
         
         return pd.DataFrame(prompts_list)
     except Exception as e:
-        st.error(f"Error processing XML file {xml_file}: {str(e)}")
+        st.error(f"Error processing XML file {file_path}: {str(e)}")
         return None
 
 def load_mapping_file():
@@ -93,6 +113,8 @@ def load_mapping_file():
 
 def get_unique_campaigns(df):
     """Extract unique campaigns from the dataframe"""
+    if df is None:
+        return []
     all_campaigns = []
     for campaigns in df['Associated Campaigns']:
         if isinstance(campaigns, list):
@@ -172,15 +194,6 @@ def main():
                         'Source File': ', '.join(sorted(group['Source File'].unique()))
                     })
                     
-                    final_data.append({
-                        'ID': prompt_id,
-                        'Name': prompt_name,
-                        'Module': ', '.join(sorted(group['Module'].unique())),
-                        'Type': 'Announcement' if is_announcement else 'Play',
-                        'Status': status,
-                        'Source File': ', '.join(sorted(group['Source File'].unique()))
-                    })
-                
                 final_df = pd.DataFrame(final_data)
                 
                 st.write("### Prompt Status from IVR Files")
@@ -190,7 +203,7 @@ def main():
                     use_container_width=True
                 )
         else:
-            st.warning("No IVR files found in the repository. Please ensure IVR files are in the ./ivr directory.")
+            st.warning("No IVR files found in the repository. Please ensure IVR files are in the ./IVRs directory.")
     except Exception as e:
         st.error(f"Error reading IVR files: {str(e)}")
         
@@ -201,9 +214,6 @@ def main():
                 hide_index=True,
                 use_container_width=True
             )
-    
-    # Load mapping data
-    df = load_mapping_file()
     
     if df is not None:
         # Get unique campaigns
