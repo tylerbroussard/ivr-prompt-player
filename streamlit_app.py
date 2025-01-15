@@ -24,33 +24,20 @@ class ModuleGraph:
         """Build directed graph of module connections"""
         graph = defaultdict(set)
         
-        # Initialize all modules
         for module in root.findall('.//modules/*'):
             module_id = module.find('moduleId')
             if module_id is not None:
-                graph[module_id.text] = set()
-        
-        # Build connections
-        for module in root.findall('.//modules/*'):
-            module_id = module.find('moduleId')
-            if module_id is not None:
-                current_id = module_id.text
+                module_id = module_id.text
+                graph[module_id]  # Ensure the module exists in the graph
                 
-                # Add branch descendants from branches/entry/value/desc
-                for branch in module.findall('.//branches/entry/value/desc'):
-                    if branch is not None and branch.text:
-                        graph[current_id].add(branch.text)
-                
-                # Add direct descendants
+                # Add connections
                 for tag in ['singleDescendant', 'exceptionalDescendant']:
-                    for descendant in module.findall(f'./{tag}'):
-                        if descendant is not None and descendant.text:
-                            graph[current_id].add(descendant.text)
-                            
-                # Add ascendants for reverse lookup
-                for ascendant in module.findall('.//ascendants'):
-                    if ascendant is not None and ascendant.text:
-                        graph[ascendant.text].add(current_id)
+                    for conn in module.findall(f'./{tag}'):
+                        graph[module_id].add(conn.text)
+                        
+                # Add reverse connections from ascendants
+                for conn in module.findall('./ascendants'):
+                    graph[conn.text].add(module_id)
         
         return graph
 
@@ -68,8 +55,8 @@ class ModuleGraph:
                     connections = module.findall(f'./{tag}')
                     all_connections.extend([conn.text for conn in connections])
                 
-                # Special case: skill transfer modules should not be considered disconnected
-                if module.tag == 'skillTransfer':
+                # Special case: skill transfer and announcement modules should not be considered disconnected
+                if module.tag in ['skillTransfer', 'announcements']:
                     continue
                     
                 # If all connections point to self, module is disconnected
@@ -83,8 +70,6 @@ class ModuleGraph:
         incoming_call = root.find('.//modules/incomingCall/moduleId')
         if incoming_call is not None:
             self._compute_reachable_modules(incoming_call.text)
-        else:
-            logger.warning("No IncomingCall module found")
 
     def _compute_reachable_modules(self, start_module: str) -> None:
         """Compute all reachable modules using DFS"""
@@ -99,7 +84,7 @@ class ModuleGraph:
 
     def is_module_reachable(self, module_id: str) -> bool:
         """Check if a module is reachable (not disconnected)"""
-        return module_id not in self.disconnected_modules and module_id in self.reachable_modules
+        return module_id not in self.disconnected_modules
 
 class PromptAnalyzer:
     """Class to handle prompt analysis"""
@@ -126,7 +111,10 @@ class PromptAnalyzer:
                     prompt_id = prompt.find('id')
                     if prompt_id is not None:
                         self.announcement_prompts[prompt_id.text] = {
-                            'enabled': enabled.text.lower() == 'true'
+                            'enabled': enabled.text.lower() == 'true',
+                            'module_id': module_id,
+                            'module_name': module_name,
+                            'is_reachable': is_reachable
                         }
             
             # Process prompts in different possible locations
@@ -151,18 +139,31 @@ class PromptAnalyzer:
             key = (module_id, prompt_id.text, prompt_name.text)
             
             # Check if this is an announcement prompt
-            is_announcement = prompt_id.text in self.announcement_prompts
-            enabled = self.announcement_prompts.get(prompt_id.text, {}).get('enabled', None)
+            announcement_info = self.announcement_prompts.get(prompt_id.text)
+            is_announcement = announcement_info is not None
             
-            # If not an announcement prompt, status depends on module reachability
-            if enabled is None:
+            # For announcements, use the info from when we found it in the announcements tag
+            if is_announcement:
+                enabled = announcement_info['enabled']
+                module_name = announcement_info['module_name']
+                module_id = announcement_info['module_id']
+                is_reachable = announcement_info['is_reachable']
+            else:
                 enabled = is_reachable
             
-            # Add event suffix to module name if it's an event
-            is_event = prompt_elem.find('../../recoEvents') is not None or \
-                      prompt_elem.find('../../../recoEvents') is not None or \
-                      prompt_elem.find('../../../../recoEvents') is not None
-            module_display = f"{module_name} (Event)" if is_event else module_name
+            # Add module type suffix if needed
+            module_type = None
+            if prompt_elem.find('../../recoEvents') is not None or \
+               prompt_elem.find('../../../recoEvents') is not None or \
+               prompt_elem.find('../../../../recoEvents') is not None:
+                module_type = "Event"
+            elif is_announcement:
+                module_type = "Announcement"
+            elif prompt_elem.find('../../skillTransfer') is not None or \
+                 prompt_elem.find('../../../skillTransfer') is not None:
+                module_type = "Queue"
+                
+            module_display = f"{module_name} ({module_type})" if module_type else module_name
             
             self.prompts[key] = {
                 'ID': prompt_id.text,
@@ -173,7 +174,8 @@ class PromptAnalyzer:
                 'Status': '✅ Enabled' if enabled and is_announcement 
                          else '❌ Disabled' if not enabled and is_announcement
                          else '✅ In Use' if enabled 
-                         else '❌ Not In Use'
+                         else '❌ Not In Use',
+                'Source File': ''  # Will be filled in later
             }
     
     def get_results(self) -> pd.DataFrame:
