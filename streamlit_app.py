@@ -247,11 +247,10 @@ def main():
         return
     
     # Process IVR files to get prompt statuses
-    ivr_dir = "./IVRs"
     prompt_status_df = pd.DataFrame()
     
     try:
-        ivr_files = list(Path(ivr_dir).glob('*.five9ivr')) + list(Path(ivr_dir).glob('*.xml'))
+        ivr_files = list(Path('.').glob('*.five9ivr')) + list(Path('.').glob('*.xml'))
         
         if ivr_files:
             for file_path in ivr_files:
