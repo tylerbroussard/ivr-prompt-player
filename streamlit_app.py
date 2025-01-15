@@ -3,383 +3,301 @@ import pandas as pd
 import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple, Optional
+import logging
+from dataclasses import dataclass
+from collections import defaultdict
 
-def build_module_graph(root: ET.Element) -> Dict[str, List[str]]:
-    """Build a graph of module connections."""
-    graph = {}
-    
-    # First pass: initialize all modules
-    for module in root.findall('.//modules/*'):
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@dataclass
+class Prompt:
+    """Data class to store prompt information"""
+    id: str
+    name: str
+    module: str
+    module_id: str
+    type: str
+    status: str
+    source_location: str  # Track where in the XML the prompt was found
+    occurrence_count: int = 1  # Track how many times this prompt appears
+
+class ModuleGraph:
+    """Class to handle module connectivity analysis"""
+    def __init__(self, root: ET.Element):
+        self.graph = self._build_graph(root)
+        self.reachable_modules = set()
+        self._find_incoming_call(root)
+
+    def _build_graph(self, root: ET.Element) -> Dict[str, Set[str]]:
+        """Build directed graph of module connections"""
+        graph = defaultdict(set)
+        
+        # Initialize all modules
+        for module in root.findall('.//modules/*'):
+            module_id = module.find('moduleId')
+            if module_id is not None:
+                graph[module_id.text] = set()
+        
+        # Build connections
+        for module in root.findall('.//modules/*'):
+            module_id = module.find('moduleId')
+            if module_id is not None:
+                current_id = module_id.text
+                
+                # Add branch descendants
+                for branch in module.findall('.//branches/entry/value/desc'):
+                    if branch is not None and branch.text:
+                        graph[current_id].add(branch.text)
+                
+                # Add direct descendants
+                for descendant in module.findall('./singleDescendant'):
+                    if descendant is not None and descendant.text:
+                        graph[current_id].add(descendant.text)
+                
+                # Add exceptional descendants
+                for descendant in module.findall('./exceptionalDescendant'):
+                    if descendant is not None and descendant.text:
+                        graph[current_id].add(descendant.text)
+        
+        return graph
+
+    def _find_incoming_call(self, root: ET.Element) -> None:
+        """Find IncomingCall module and compute reachable modules"""
+        incoming_call = root.find('.//modules/incomingCall/moduleId')
+        if incoming_call is not None:
+            self._compute_reachable_modules(incoming_call.text)
+        else:
+            logger.warning("No IncomingCall module found")
+
+    def _compute_reachable_modules(self, start_module: str) -> None:
+        """Compute all reachable modules using DFS"""
+        stack = [start_module]
+        while stack:
+            current = stack.pop()
+            if current not in self.reachable_modules:
+                self.reachable_modules.add(current)
+                stack.extend(self.graph[current])
+
+    def is_module_reachable(self, module_id: str) -> bool:
+        """Check if a module is reachable from IncomingCall"""
+        return module_id in self.reachable_modules
+
+class PromptAnalyzer:
+    """Class to handle prompt analysis"""
+    def __init__(self, module_graph: ModuleGraph):
+        self.module_graph = module_graph
+        self.prompts = {}  # Dictionary to store unique prompts
+        self.prompt_locations = defaultdict(list)  # Track where each prompt appears
+
+    def process_module(self, module: ET.Element) -> None:
+        """Process prompts in a module"""
         module_id = module.find('moduleId')
-        if module_id is not None:
-            graph[module_id.text] = set()  # Using set to avoid duplicates
+        module_name = module.find('moduleName')
+        
+        if module_id is None or module_name is None:
+            logger.warning(f"Module missing ID or name: {ET.tostring(module, encoding='unicode')[:100]}")
+            return
             
-    # Second pass: build connections
-    for module in root.findall('.//modules/*'):
-        module_id = module.find('moduleId')
-        if module_id is not None:
-            module_id = module_id.text
-            
-            # Add descendants from branches in case modules
-            branches = module.findall('.//branches/entry/value/desc')
-            for branch in branches:
-                if branch is not None and branch.text:
-                    graph[module_id].add(branch.text)
-            
-            # Add direct descendants
-            for tag in ['singleDescendant', 'exceptionalDescendant']:
-                for descendant in module.findall(f'./{tag}'):
-                    if descendant.text:
-                        graph[module_id].add(descendant.text)
-    
-    # Convert sets to lists for final output
-    return {k: list(v) for k, v in graph.items()}
+        is_reachable = self.module_graph.is_module_reachable(module_id.text)
+        
+        # Process different types of prompts based on module type
+        if module.tag == 'menu':
+            self._process_menu_prompts(module, module_name.text, module_id.text, is_reachable)
+        else:
+            self._process_standard_prompts(module, module_name.text, module_id.text, is_reachable)
 
-def find_reachable_modules(graph: Dict[str, List[str]], start_module: str) -> Set[str]:
-    """Find all modules reachable from the start module using DFS."""
-    reachable = set()
-    stack = [start_module]
-    
-    while stack:
-        current = stack.pop()
-        if current not in reachable:
-            reachable.add(current)
-            if current in graph:  # Check if the module exists in the graph
-                for neighbor in graph[current]:
-                    if neighbor not in reachable:
-                        stack.append(neighbor)
-    
-    return reachable
-
-def is_module_disconnected(module: ET.Element, reachable_modules: Set[str]) -> bool:
-    """Determine if a module is disconnected by checking if it's reachable from IncomingCall."""
-    module_id = module.find('moduleId')
-    if module_id is None:
-        return True
-    
-    return module_id.text not in reachable_modules
-
-def find_all_prompts_in_module(module: ET.Element, module_name: str, module_id: str, is_disconnected: bool) -> List[Dict]:
-    """Extract all prompts from a module, including those in recoEvents, with corrected status checking"""
-    prompts = []
-    
-    # For disconnected modules, all prompts should be marked as not in use
-    if is_disconnected:
-        base_status = '❌ Not In Use'
-    else:
-        base_status = '✅ In Use'
-    
-    # Handle menu module prompts
-    if module.tag == 'menu':
-        # Process recoEvents prompts
-        for reco_event in module.findall('.//recoEvents'):
-            for prompt_data in reco_event.findall('.//promptData/prompt'):
-                prompt_id = prompt_data.find('id')
-                prompt_name = prompt_data.find('name')
-                if prompt_id is not None and prompt_name is not None:
-                    prompts.append({
-                        'ID': prompt_id.text,
-                        'Name': prompt_name.text,
-                        'Module': module_name,
-                        'ModuleID': module_id,
-                        'Type': 'Play',
-                        'Status': base_status  # Use base status for all prompts in disconnected modules
-                    })
+    def _process_menu_prompts(self, module: ET.Element, module_name: str, module_id: str, 
+                            is_reachable: bool) -> None:
+        """Process prompts specific to menu modules"""
+        # Track seen prompts within this menu to handle duplicates
+        seen_in_menu = set()
         
         # Process main menu prompts
-        for prompt_data in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
-            prompt_id = prompt_data.find('id')
-            prompt_name = prompt_data.find('name')
-            if prompt_id is not None and prompt_name is not None:
-                prompts.append({
-                    'ID': prompt_id.text,
-                    'Name': prompt_name.text,
-                    'Module': module_name,
-                    'ModuleID': module_id,
-                    'Type': 'Play',
-                    'Status': base_status
-                })
-    
-    # Handle announcement prompts and other types
-    for prompt_elem in module.findall('.//prompt'):
-        prompt_id = elem.find('id')
-        prompt_name = elem.find('name')
-        if prompt_id is not None and prompt_name is not None:
-            # Check if this is an announcement prompt
-            is_announcement = False
-            parent = elem.getparent()
-            while parent is not None:
-                if parent.tag == 'announcements':
-                    is_announcement = True
-                    # For announcements, check enabled status only if module is connected
-                    if not is_disconnected:
-                        enabled_elem = parent.find('enabled')
-                        enabled = enabled_elem is not None and enabled_elem.text.lower() == 'true'
-                    else:
-                        enabled = False
-                    break
-                parent = parent.getparent()
+        for prompt in module.findall('.//prompts/prompt/filePrompt/promptData/prompt'):
+            self._add_prompt(prompt, module_name, module_id, is_reachable, 'Menu', seen_in_menu)
+        
+        # Process recoEvents prompts
+        for reco_event in module.findall('.//recoEvents'):
+            event_type = reco_event.find('event')
+            event_count = reco_event.find('count')
+            location = f"recoEvents/{event_type.text if event_type is not None else 'unknown'}"
             
-            status = '❌ Not In Use'
-            if not is_disconnected:
-                if is_announcement:
-                    status = '✅ Enabled' if enabled else '❌ Disabled'
-                else:
-                    status = '✅ In Use'
-            
-            prompts.append({
-                'ID': prompt_id.text,
-                'Name': prompt_name.text,
-                'Module': module_name,
-                'ModuleID': module_id,
-                'Type': 'Announcement' if is_announcement else 'Play',
-                'Status': status
-            })
-    
-    return prompts
+            for prompt in reco_event.findall('.//promptData/prompt'):
+                self._add_prompt(prompt, module_name, module_id, is_reachable, location, seen_in_menu)
 
-def extract_prompts_from_xml(file_path):
-    """Extract prompts and their status from XML content"""
+    def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
+                                is_reachable: bool) -> None:
+        """Process prompts in non-menu modules"""
+        seen_in_module = set()
+        
+        # Process all prompt locations
+        for prompt in module.findall('.//prompt/filePrompt/promptData/prompt'):
+            self._add_prompt(prompt, module_name, module_id, is_reachable, 'Standard', seen_in_module)
+            
+        # Process announcement prompts
+        for prompt in module.findall('.//announcements//prompt'):
+            self._add_prompt(prompt, module_name, module_id, is_reachable, 'Announcement', seen_in_module)
+
+    def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, 
+                   is_reachable: bool, location: str, seen_prompts: Set[str]) -> None:
+        """Add or update a prompt in the prompts dictionary"""
+        prompt_id = prompt_elem.find('id')
+        prompt_name = prompt_elem.find('name')
+        
+        if prompt_id is None or prompt_name is None:
+            logger.warning(f"Prompt missing ID or name in module {module_name}")
+            return
+            
+        prompt_key = (prompt_id.text, prompt_name.text)
+        
+        # Check if we've seen this prompt in this module
+        if prompt_key in seen_prompts:
+            self.prompts[prompt_key].occurrence_count += 1
+            return
+            
+        seen_prompts.add(prompt_key)
+        
+        # Determine prompt status
+        status = '✅ In Use' if is_reachable else '❌ Not In Use'
+        
+        if prompt_key in self.prompts:
+            # Update existing prompt if needed
+            existing_prompt = self.prompts[prompt_key]
+            existing_prompt.occurrence_count += 1
+            if is_reachable and existing_prompt.status == '❌ Not In Use':
+                existing_prompt.status = '✅ In Use'
+        else:
+            # Create new prompt
+            self.prompts[prompt_key] = Prompt(
+                id=prompt_id.text,
+                name=prompt_name.text,
+                module=module_name,
+                module_id=module_id,
+                type='Play',
+                status=status,
+                source_location=location
+            )
+        
+        # Track location
+        self.prompt_locations[prompt_key].append(
+            f"{module_name}:{location}"
+        )
+
+    def get_results(self) -> pd.DataFrame:
+        """Convert results to DataFrame"""
+        results = []
+        for prompt in self.prompts.values():
+            results.append({
+                'ID': prompt.id,
+                'Name': prompt.name,
+                'Module': prompt.module,
+                'ModuleID': prompt.module_id,
+                'Type': prompt.type,
+                'Status': prompt.status,
+                'Occurrences': prompt.occurrence_count,
+                'Locations': '; '.join(self.prompt_locations[(prompt.id, prompt.name)])
+            })
+        return pd.DataFrame(results)
+
+def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
+    """Analyze an IVR file and return prompt information"""
     try:
         tree = ET.parse(file_path)
         root = tree.getroot()
-        prompts_list = []
         
-        # Find IncomingCall module and build reachability graph
-        incoming_call = root.find('.//modules/incomingCall/moduleId')
-        if incoming_call is not None:
-            graph = build_module_graph(root)
-            reachable_modules = find_reachable_modules(graph, incoming_call.text)
-        else:
-            st.warning(f"No incoming call module found in {file_path}")
-            reachable_modules = set()
-
-        # Process all modules to find prompts
+        # Create module graph
+        module_graph = ModuleGraph(root)
+        
+        # Create prompt analyzer
+        analyzer = PromptAnalyzer(module_graph)
+        
+        # Process all modules
         for module in root.findall('.//modules/*'):
-            # Check if this module is reachable from IncomingCall
-            is_disconnected = is_module_disconnected(module, reachable_modules)
-            module_id = module.find('moduleId')
-            module_name = module.find('moduleName')
-            
-            if module_name is not None and module_id is not None:
-                module_name = module_name.text
-                module_id = module_id.text
-                
-# Process standard prompts
-                prompt_locations = [
-                    # Main prompts
-                    './/prompt/filePrompt/promptData/prompt',
-                    # Menu prompts
-                    './/prompts/prompt/filePrompt/promptData/prompt',
-                    # Compound prompts
-                    './/compoundPrompt/filePrompt/promptData/prompt',
-                    # Announcement prompts
-                    './/announcements/prompt'
-                ]
-                
-                # Process menu reco events separately
-                if module.tag == 'menu':
-                    for reco_event in module.findall('.//recoEvents'):
-                        event_count = reco_event.find('count')
-                        event_action = reco_event.find('action')
-                        
-                        # Process all prompts within this reco event
-                        for prompt_elem in reco_event.findall('.//promptData/prompt'):
-                            prompt_id = prompt_elem.find('id')
-                            prompt_name = prompt_elem.find('name')
-                            
-                            if prompt_id is not None and prompt_name is not None:
-                                prompts_list.append({
-                                    'ID': prompt_id.text,
-                                    'Name': prompt_name.text,
-                                    'Module': module_name,
-                                    'ModuleID': module_id,
-                                    'Type': 'Play',
-                                    'Status': '❌ Not In Use' if is_disconnected else '✅ In Use'
-                                })
-                
-                for location in prompt_locations:
-                    for prompt_elem in module.findall(location):
-                        prompt_id = prompt_elem.find('id')
-                        prompt_name = prompt_elem.find('name')
-                        if prompt_id is not None and prompt_name is not None:
-                            # For announcement prompts, check enabled status
-                            is_announcement = module.tag == 'skillTransfer' and 'announcements' in location
-                            if is_announcement:
-                                enabled_elem = prompt_elem.find('../enabled')
-                                enabled = enabled_elem is not None and enabled_elem.text.lower() == 'true'
-                                # Even if enabled, check if the module is reachable
-                                if is_disconnected:
-                                    enabled = False
-                            else:
-                                enabled = not is_disconnected
-                            
-                            prompts_list.append({
-                                'ID': prompt_id.text,
-                                'Name': prompt_name.text,
-                                'Module': module_name,
-                                'ModuleID': module_id,
-                                'Type': 'Announcement' if is_announcement else 'Play',
-                                'Status': ('✅ Enabled' if enabled else '❌ Disabled') if is_announcement 
-                                         else ('✅ In Use' if enabled else '❌ Not In Use')
-                            })
+            analyzer.process_module(module)
         
-        return pd.DataFrame(prompts_list)
+        # Get results
+        results = analyzer.get_results()
+        
+        # Add source file information
+        results['Source File'] = Path(file_path).name
+        
+        return results
+        
     except Exception as e:
-        st.error(f"Error processing XML file {file_path}: {str(e)}")
+        logger.error(f"Error processing {file_path}: {str(e)}", exc_info=True)
         return None
-
-def load_mapping_file():
-    """Load and process the campaign mapping CSV file from local directory"""
-    try:
-        df = pd.read_csv("prompt_campaign_mapping.csv")
-        # Split campaigns if they're in a comma-separated format
-        df['Associated Campaigns'] = df['Associated Campaigns'].str.split(',')
-        return df
-    except FileNotFoundError:
-        st.error("prompt_campaign_mapping.csv not found in the current directory")
-        return None
-    except Exception as e:
-        st.error(f"Error reading mapping file: {str(e)}")
-        return None
-
-def get_unique_campaigns(df):
-    """Extract unique campaigns from the dataframe"""
-    if df is None:
-        return []
-    all_campaigns = []
-    for campaigns in df['Associated Campaigns']:
-        if isinstance(campaigns, list):
-            all_campaigns.extend(campaigns)
-    return sorted(list(set(campaign.strip() for campaign in all_campaigns)))
-
-def get_audio_path(prompt_name):
-    """Get the path for an audio file based on the prompt name"""
-    audio_dir = "./prompts"
-    filename_with_spaces = f"{prompt_name}.wav"
-    path_with_spaces = os.path.join(audio_dir, filename_with_spaces)
-    filename_with_underscores = f"{prompt_name.replace(' ', '_')}.wav"
-    path_with_underscores = os.path.join(audio_dir, filename_with_underscores)
-    
-    if os.path.exists(path_with_spaces):
-        return path_with_spaces
-    elif os.path.exists(path_with_underscores):
-        return path_with_underscores
-    return path_with_spaces
-
-def create_audio_player(prompt_name):
-    """Create an audio player for the given prompt"""
-    audio_path = get_audio_path(prompt_name)
-    if os.path.exists(audio_path):
-        with open(audio_path, 'rb') as audio_file:
-            audio_bytes = audio_file.read()
-        return st.audio(audio_bytes, format='audio/wav')
-    return None
 
 def main():
-    st.set_page_config(
-        page_title="Campaign Prompt Player",
-        layout="wide"
-    )
+    st.set_page_config(page_title="IVR Prompt Analyzer", layout="wide")
+    st.title("IVR Prompt Analyzer")
     
-    st.title("Campaign Prompt Player")
-    
-    # Load mapping data
-    df = load_mapping_file()
-    
-    # Read IVR files from repository but don't display the table
+    # Process IVR files
     ivr_dir = "./IVRs"
-    xml_data = pd.DataFrame()
+    results_list = []
     
     try:
-        # Get all XML and five9ivr files from the directory
-        ivr_files = []
-        for ext in ['*.xml', '*.five9ivr']:
-            ivr_files.extend(Path(ivr_dir).glob(ext))
+        ivr_files = list(Path(ivr_dir).glob('*.five9ivr')) + list(Path(ivr_dir).glob('*.xml'))
         
-        if ivr_files:
-            for file_path in ivr_files:
-                df_xml = extract_prompts_from_xml(file_path)
-                if df_xml is not None:
-                    df_xml['Source File'] = file_path.name
-                    xml_data = pd.concat([xml_data, df_xml], ignore_index=True)
+        if not ivr_files:
+            st.warning("No IVR files found in the ./IVRs directory")
+            return
             
-            if not xml_data.empty:
-                # Group by prompt ID to combine any duplicates
-                final_data = []
-                for name, group in xml_data.groupby(['ID', 'Name']):
-                    prompt_id, prompt_name = name
-                    is_announcement = (group['Type'] == 'Announcement').any()
-                    has_enabled = any('✅' in status for status in group['Status'])
-                    status = ('✅ Enabled' if has_enabled else '❌ Disabled') if is_announcement else ('✅ In Use' if has_enabled else '❌ Not In Use')
-                    
-                    final_data.append({
-                        'ID': prompt_id,
-                        'Name': prompt_name,
-                        'Type': 'Announcement' if is_announcement else 'Play',
-                        'Status': status,
-                    })
-                    
-                xml_data = pd.DataFrame(final_data)
+        for file_path in ivr_files:
+            df = analyze_ivr_file(str(file_path))
+            if df is not None:
+                results_list.append(df)
         
-        if ivr_files and not xml_data.empty:
-            inactive_prompts_count = len(xml_data[xml_data['Status'].str.contains('❌')])
-        else:
-            inactive_prompts_count = 0
-            st.warning("No IVR files found in the repository. Please ensure IVR files are in the ./IVRs directory.")
-    except Exception as e:
-        st.error(f"Error reading IVR files: {str(e)}")
-        inactive_prompts_count = 0
-    
-    if df is not None:
-        # Get unique campaigns
-        campaigns = get_unique_campaigns(df)
+        if not results_list:
+            st.error("No valid results found from any IVR files")
+            return
+            
+        # Combine results
+        final_results = pd.concat(results_list, ignore_index=True)
         
-        # Campaign selector
-        selected_campaign = st.selectbox(
-            "Select Campaign",
-            options=campaigns,
-            help="Choose a campaign to view its associated prompts"
-        )
+        # Display results
+        st.subheader("Prompt Analysis Results")
         
-        # Filter prompts for selected campaign
-        campaign_prompts = df[df['Associated Campaigns'].apply(
-            lambda x: selected_campaign in x if isinstance(x, list) else False
-        )]
-        
-        # Display statistics
+        # Add filters
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Prompts in Selected Campaign", len(campaign_prompts))
+            status_filter = st.multiselect(
+                "Filter by Status",
+                options=sorted(final_results['Status'].unique())
+            )
         with col2:
-            st.metric("Inactive Prompts", inactive_prompts_count)
+            type_filter = st.multiselect(
+                "Filter by Type",
+                options=sorted(final_results['Type'].unique())
+            )
         
-        # Display associated campaigns
-        st.markdown("### Campaign Details")
-        st.markdown(f"**Selected Campaign:** {selected_campaign}")
+        # Apply filters
+        filtered_results = final_results
+        if status_filter:
+            filtered_results = filtered_results[filtered_results['Status'].isin(status_filter)]
+        if type_filter:
+            filtered_results = filtered_results[filtered_results['Type'].isin(type_filter)]
         
-        # Display prompts with audio players and status
-        st.markdown("### Campaign Prompts")
+        # Display metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Prompts", len(final_results))
+        with col2:
+            st.metric("In Use", len(final_results[final_results['Status'] == '✅ In Use']))
+        with col3:
+            st.metric("Not In Use", len(final_results[final_results['Status'] == '❌ Not In Use']))
         
-        for idx, row in campaign_prompts.iterrows():
-            prompt_name = row['Prompt Name']
-            
-            # Get status from xml_data
-            status_info = "Status Unknown"
-            if not xml_data.empty:
-                prompt_status = xml_data[xml_data['Name'] == prompt_name]
-                if not prompt_status.empty:
-                    status_info = prompt_status.iloc[0]['Status']
-                    status_type = prompt_status.iloc[0]['Type']
-            
-            with st.expander(f"{prompt_name} ({status_info})", expanded=True):
-                audio_path = get_audio_path(prompt_name)
-                if os.path.exists(audio_path):
-                    create_audio_player(prompt_name)
-                else:
-                    st.warning("⚠️ Audio not found")
-                    st.text(f"Looking for: {os.path.basename(audio_path)}")
+        # Display results table
+        st.dataframe(
+            filtered_results[['Name', 'Status', 'Type', 'Module', 'Occurrences', 'Locations', 'Source File']]
+            .sort_values(['Status', 'Name'])
+        )
+        
+    except Exception as e:
+        st.error(f"Error processing IVR files: {str(e)}")
+        logger.error("Error in main processing", exc_info=True)
 
 if __name__ == "__main__":
     main()
