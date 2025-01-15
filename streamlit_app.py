@@ -239,6 +239,11 @@ def create_audio_player(prompt_name: str) -> None:
     st.text(f"Looking for: {filenames[0]} or {filenames[1]}")
 
 def main():
+    print("Starting application...")  # Basic print to see if we're running
+    st.write("Starting application...")  # Streamlit write to see if UI is working
+    print(f"Current working directory: {os.getcwd()}")  # Print current directory
+    st.write(f"Current working directory: {os.getcwd()}")  # Show current directory in UI
+    
     st.set_page_config(page_title="Campaign Prompt Player", layout="wide")
     st.title("Campaign Prompt Player")
     
