@@ -80,6 +80,7 @@ class PromptAnalyzer:
     """Class to handle prompt analysis"""
     def __init__(self, module_graph: ModuleGraph):
         self.module_graph = module_graph
+        # Now the dictionary keys each prompt by (module_id, prompt_id, prompt_name)
         self.prompts = {}
 
     def process_module(self, module: ET.Element) -> None:
@@ -104,19 +105,32 @@ class PromptAnalyzer:
         Process prompts specific to menu modules, including:
           - The 'Prompts' tab (promptData/prompt)
           - The 'Events' tab (recoEvents/event/promptData/prompt)
+          - The 'Events' tab (recoEvents/event/compoundPrompt/filePrompt/promptData/prompt)
+        
+        If the menu module itself is not reachable, all prompts are marked as not in use.
+        All event prompts are always marked as not in use.
         """
         # Process prompts from the "Prompts" tab
         for prompt in module.findall('.//promptData/prompt'):
             self._add_prompt(prompt, module_name, module_id, is_reachable)
 
-        # Process prompts from the "Events" tab (e.g. No Input, No Match)
+        # Process prompts from the "Events" tab - all event prompts are not in use
         for event_prompt in module.findall('.//recoEvents/event/promptData/prompt'):
-            self._add_prompt(event_prompt, module_name, module_id, is_reachable)
+            self._add_prompt(event_prompt, module_name, module_id, False)
+            
+        # Process prompts from compound events - all event prompts are not in use
+        for event_prompt in module.findall('.//recoEvents/event/compoundPrompt/filePrompt/promptData/prompt'):
+            self._add_prompt(event_prompt, module_name, module_id, False)
 
     def _process_standard_prompts(self, module: ET.Element, module_name: str, module_id: str, 
                                   is_reachable: bool) -> None:
         """Process prompts in standard modules"""
+        # Process standard prompts
         for prompt in module.findall('.//prompt/filePrompt/promptData/prompt'):
+            self._add_prompt(prompt, module_name, module_id, is_reachable)
+            
+        # Process announcement prompts
+        for prompt in module.findall('.//announcements/prompt'):
             self._add_prompt(prompt, module_name, module_id, is_reachable)
 
     def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, 
@@ -223,9 +237,6 @@ def main():
     if mapping_df is None:
         return
     
-    # Normalize campaign prompts for consistent matching
-    mapping_df['Prompt Name'] = mapping_df['Prompt Name'].str.strip().str.lower()
-    
     # Process IVR files to get prompt statuses
     ivr_dir = "./IVRs"
     prompt_status_df = pd.DataFrame()
@@ -241,9 +252,6 @@ def main():
         
         if prompt_status_df.empty:
             st.warning("No IVR files found or processed successfully")
-        else:
-            prompt_status_df['Name'] = prompt_status_df['Name'].str.strip().str.lower()
-            st.dataframe(prompt_status_df.head())  # Display a preview for debugging
     except Exception as e:
         st.error(f"Error processing IVR files: {str(e)}")
         logger.error("Error in IVR processing", exc_info=True)
@@ -269,6 +277,9 @@ def main():
         st.metric("Prompts in Selected Campaign", len(campaign_prompts))
     with col2:
         if not prompt_status_df.empty:
+            # Since we are now capturing multiple rows per prompt (due to module-based key),
+            # "Inactive Prompts" might need more careful grouping logic if desired.
+            # For simplicity, we can still count how many are in "❌ Not In Use" overall:
             inactive_count = len(prompt_status_df[prompt_status_df['Status'] == '❌ Not In Use'])
             st.metric("Inactive Prompts", inactive_count)
     
@@ -276,27 +287,24 @@ def main():
     st.markdown("### Campaign Details")
     st.markdown(f"**Selected Campaign:** {selected_campaign}")
     
-    # Gather unique prompt names
-    unique_prompt_names = sorted(campaign_prompts['Prompt Name'].unique())
-    
     # Display prompts with audio players and status
     st.markdown("### Campaign Prompts")
-
-    for prompt_name in unique_prompt_names:
-        # Get relevant rows from prompt_status_df by the prompt name
+    
+    for idx, row in campaign_prompts.iterrows():
+        prompt_name = row['Prompt Name']
+        
+        # Get status info for this prompt from any IVR
         relevant_prompt_rows = prompt_status_df[prompt_status_df['Name'] == prompt_name]
         
-        st.write(f"Checking prompt: {prompt_name}")  # Debugging prompt name
-        if relevant_prompt_rows.empty:
-            st.warning(f"No matches found for: {prompt_name}")
-            with st.expander(f"{prompt_name} (No Status Found)", expanded=False):
+        if not relevant_prompt_rows.empty:
+            # Prompt is in use if it's reachable in any module
+            is_in_use = any(status == '✅ In Use' for status in relevant_prompt_rows['Status'])
+            status_info = '✅ In Use' if is_in_use else '❌ Not In Use'
+            
+            with st.expander(f"{prompt_name} ({status_info})", expanded=False):
                 create_audio_player(prompt_name)
         else:
-            with st.expander(f"{prompt_name}", expanded=False):
-                for _, prompt_row in relevant_prompt_rows.iterrows():
-                    module_id = prompt_row['ModuleID']
-                    status_info = prompt_row['Status']
-                    st.text(f"Module: {module_id} | Status: {status_info}")
+            with st.expander(f"{prompt_name} (No Status Found)", expanded=False):
                 create_audio_player(prompt_name)
 
 if __name__ == "__main__":
