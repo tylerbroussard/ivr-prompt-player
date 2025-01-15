@@ -232,14 +232,14 @@ def analyze_ivr_file(file_path: str) -> Optional[pd.DataFrame]:
         logger.error(f"Error processing {file_path}: {str(e)}")
         return None
 
-def load_mapping_file() -> Optional[pd.DataFrame]:
+def load_mapping_file(mapping_file: Path) -> Optional[pd.DataFrame]:
     """Load and process the campaign mapping CSV file"""
     try:
-        df = pd.read_csv("prompt_campaign_mapping.csv")
+        df = pd.read_csv(mapping_file)
         df['Associated Campaigns'] = df['Associated Campaigns'].str.split(',')
         return df
     except FileNotFoundError:
-        st.error("prompt_campaign_mapping.csv not found in the current directory")
+        st.error(f"prompt_campaign_mapping.csv not found at {mapping_file}")
         return None
     except Exception as e:
         st.error(f"Error reading mapping file: {str(e)}")
@@ -279,17 +279,22 @@ def main():
     st.set_page_config(page_title="Campaign Prompt Player", layout="wide")
     st.title("Campaign Prompt Player")
     
+    # Get repository root directory
+    repo_root = Path(__file__).parent
+    
     # Load campaign mapping data
-    mapping_df = load_mapping_file()
+    mapping_file = repo_root / "prompt_campaign_mapping.csv"
+    mapping_df = load_mapping_file(mapping_file)
     if mapping_df is None:
         return
     
     # Process IVR files to get prompt statuses
-    ivr_dir = "/IVRs"
+    ivr_dir = repo_root / "IVRs"
     prompt_status_df = pd.DataFrame()
     
     try:
-        ivr_files = list(Path(ivr_dir).glob('*.five9ivr')) + list(Path(ivr_dir).glob('*.xml'))
+        logger.info(f"Looking for IVR files in: {ivr_dir}")
+        ivr_files = list(ivr_dir.glob('*.five9ivr')) + list(ivr_dir.glob('*.xml'))
         
         if ivr_files:
             logger.info(f"Found {len(ivr_files)} IVR files")
