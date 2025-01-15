@@ -287,26 +287,26 @@ def main():
     for idx, row in campaign_prompts.iterrows():
         prompt_name = row['Prompt Name']
         
-        # Get relevant rows from prompt_status_df by the prompt name, but only from the current IVR file
-        relevant_prompt_rows = prompt_status_df[
-            (prompt_status_df['Name'] == prompt_name) & 
-            (prompt_status_df['Source File'] == 'AA Sanitaire SVC Center V1.1 - Studio - EBS Maintenance.five9ivr')
-        ]
+        # Get relevant rows from prompt_status_df by the prompt name from any IVR file
+        relevant_prompt_rows = prompt_status_df[prompt_status_df['Name'] == prompt_name]
         
         if not relevant_prompt_rows.empty:
-            # A prompt is considered "in use" if it's reachable in ANY module
+            # A prompt is considered "in use" if it's reachable in ANY module in ANY IVR
             is_in_use = any(status == '✅ In Use' for status in relevant_prompt_rows['Status'])
             status_info = '✅ In Use' if is_in_use else '❌ Not In Use'
             
-            # Get a list of modules where this prompt appears
-            modules = relevant_prompt_rows['Module'].unique()
-            
+            # Group by IVR file
             with st.expander(f"{prompt_name} ({status_info})", expanded=False):
-                st.write("**Found in modules:**")
-                for module in modules:
-                    module_rows = relevant_prompt_rows[relevant_prompt_rows['Module'] == module]
-                    module_status = '✅' if any(status == '✅ In Use' for status in module_rows['Status']) else '❌'
-                    st.write(f"{module_status} {module}")
+                for ivr_file in relevant_prompt_rows['Source File'].unique():
+                    st.write(f"**In {ivr_file}:**")
+                    ivr_rows = relevant_prompt_rows[relevant_prompt_rows['Source File'] == ivr_file]
+                    
+                    # Show modules for this IVR
+                    for module in ivr_rows['Module'].unique():
+                        module_rows = ivr_rows[ivr_rows['Module'] == module]
+                        module_status = '✅' if any(status == '✅ In Use' for status in module_rows['Status']) else '❌'
+                        st.write(f"{module_status} {module}")
+                
                 create_audio_player(prompt_name)
         else:
             # If we don't have any status info for this prompt name
