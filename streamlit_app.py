@@ -11,63 +11,12 @@ from collections import defaultdict
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class ModuleGraph:
-    """Class to handle module connectivity analysis"""
-    def __init__(self, root: ET.Element):
-        self.root = root
-        self.graph = self._build_graph()
-        self.disconnected_modules = self._find_disconnected_modules()
-        
-    def _build_graph(self) -> Dict[str, Set[str]]:
-        """Build directed graph of module connections"""
-        graph = defaultdict(set)
-        
-        for module in self.root.findall('.//modules/*'):
-            module_id = module.find('moduleId')
-            if module_id is not None:
-                module_id = module_id.text
-                # Add connections
-                for tag in ['singleDescendant', 'exceptionalDescendant']:
-                    for conn in module.findall(f'./{tag}'):
-                        if conn.text:
-                            graph[module_id].add(conn.text)
-                            
-                # Add reverse connections from ascendants
-                for conn in module.findall('./ascendants'):
-                    if conn.text:
-                        graph[conn.text].add(module_id)
-        
-        return graph
-
-    def _find_disconnected_modules(self) -> Set[str]:
-        """Find modules that are disconnected (all connections point to self)"""
-        disconnected = set()
-        
-        for module in self.root.findall('.//modules/*'):
-            module_id = module.find('moduleId')
-            if module_id is not None:
-                module_id = module_id.text
-                all_connections = []
-                
-                for tag in ['ascendants', 'exceptionalDescendant', 'singleDescendant']:
-                    connections = module.findall(f'./{tag}')
-                    all_connections.extend([conn.text for conn in connections if conn.text])
-                
-                if all_connections and all(conn == module_id for conn in all_connections):
-                    disconnected.add(module_id)
-        
-        return disconnected
-
-    def is_module_disconnected(self, module_id: str) -> bool:
-        """Check if a module is disconnected"""
-        return module_id in self.disconnected_modules
-
 class PromptAnalyzer:
     """Class to handle prompt analysis"""
     def __init__(self, root: ET.Element):
         self.root = root
-        self.module_graph = ModuleGraph(root)
         self.prompts = {}
+        # First find all announcement prompts
         self.announcement_prompts = self._find_announcement_prompts()
         
     def _find_announcement_prompts(self) -> Dict[str, Dict]:
@@ -84,6 +33,23 @@ class PromptAnalyzer:
                     }
         return announcements
     
+    def _is_module_disconnected(self, module: ET.Element) -> bool:
+        """Check if a module is disconnected (all connections point to self)"""
+        module_id = module.find('moduleId')
+        if module_id is None:
+            return False
+            
+        module_id = module_id.text
+        all_connections = []
+        
+        # Check all connection types
+        for tag in ['ascendants', 'exceptionalDescendant', 'singleDescendant']:
+            connections = module.findall(f'./{tag}')
+            all_connections.extend([conn.text for conn in connections if conn.text])
+        
+        # If all connections point to self or no connections exist, module is disconnected
+        return all_connections and all(conn == module_id for conn in all_connections)
+    
     def process_module(self, module: ET.Element):
         """Process prompts in a module"""
         module_name = module.find('moduleName')
@@ -91,8 +57,7 @@ class PromptAnalyzer:
         
         if module_name is not None and module_id is not None:
             module_name = module_name.text
-            module_id = module_id.text
-            is_disconnected = self.module_graph.is_module_disconnected(module_id)
+            is_disconnected = self._is_module_disconnected(module)
             
             # Process prompts in different possible locations
             prompt_locations = [
@@ -105,22 +70,26 @@ class PromptAnalyzer:
             
             for location in prompt_locations:
                 for prompt_elem in module.findall(location):
-                    self._add_prompt(prompt_elem, module_name, module_id, is_disconnected)
+                    self._add_prompt(prompt_elem, module_name, is_disconnected)
     
-    def _add_prompt(self, prompt_elem: ET.Element, module_name: str, module_id: str, is_disconnected: bool):
+    def _add_prompt(self, prompt_elem: ET.Element, module_name: str, is_disconnected: bool):
         """Add a prompt to the prompts dictionary"""
         prompt_id = prompt_elem.find('id')
         prompt_name = prompt_elem.find('name')
         
         if prompt_id is not None and prompt_name is not None:
             prompt_id_text = prompt_id.text
+            
+            # Check if this is an announcement prompt
             is_announcement = prompt_id_text in self.announcement_prompts
             
             if is_announcement:
+                # For announcement prompts, use enabled status from announcements
                 enabled = self.announcement_prompts[prompt_id_text]['enabled']
                 status = '✅ Enabled' if enabled else '❌ Disabled'
                 prompt_type = 'Announcement'
             else:
+                # For regular prompts, use module connectivity
                 enabled = not is_disconnected
                 status = '✅ In Use' if enabled else '❌ Not In Use'
                 prompt_type = 'Play'
@@ -253,7 +222,10 @@ def main():
     with col1:
         st.metric("Total Prompts", len(campaign_prompts))
     with col2:
-        inactive_count = len(prompt_status_df[prompt_status_df['Status'].isin(['❌ Not In Use', '❌ Disabled'])])
+        # Count prompts marked as Not In Use or Disabled
+        inactive_count = len(prompt_status_df[
+            prompt_status_df['Status'].isin(['❌ Not In Use', '❌ Disabled'])
+        ])
         st.metric("Inactive Prompts", inactive_count)
     
     # Display campaign prompts
@@ -276,8 +248,8 @@ def main():
         ]
         
         if not prompt_status.empty:
-            # Use the most "active" status found
-            status = '✅ In Use' if any(s in ['✅ In Use', '✅ Enabled'] for s in prompt_status['Status']) else '❌ Not In Use'
+            # Get the most recent status
+            status = prompt_status.iloc[0]['Status']
             with st.expander(f"{prompt_name} ({status})", expanded=False):
                 create_audio_player(prompt_name)
         else:
