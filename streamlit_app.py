@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Set, Optional
+from typing import Dict, List, Set, Optional, Tuple
 import logging
 from collections import defaultdict
 
@@ -60,6 +60,19 @@ class PromptAnalyzer:
         # If no connections or all connections point to self, module is disconnected
         return not all_connections or all(conn == module_id for conn in all_connections)
     
+    def _find_parent_module(self, element: ET.Element) -> Tuple[Optional[str], Optional[str]]:
+        """Find the parent module's ID and name for an element by searching up the XML tree"""
+        for module in self.root.findall('.//modules/*'):
+            for elem in module.iter():
+                if elem == element:
+                    module_id = module.find('moduleId')
+                    module_name = module.find('moduleName')
+                    return (
+                        module_id.text if module_id is not None else None,
+                        module_name.text if module_name is not None else None
+                    )
+        return None, None
+
     def _find_announcement_prompts(self) -> Dict[str, Dict]:
         """Find all announcement prompts and their enabled status"""
         announcements = {}
@@ -70,15 +83,13 @@ class PromptAnalyzer:
             if prompt is not None and enabled is not None:
                 prompt_id = prompt.find('id')
                 if prompt_id is not None:
-                    # For announcements, we store both enabled status and the parent module
-                    module = announcement.getparent()
-                    module_id = module.find('moduleId')
-                    module_name = module.find('moduleName')
+                    # Find the parent module information
+                    module_id, module_name = self._find_parent_module(announcement)
                     
                     announcements[prompt_id.text] = {
                         'enabled': enabled.text.lower() == 'true',
-                        'module_id': module_id.text if module_id is not None else None,
-                        'module_name': module_name.text if module_name is not None else None
+                        'module_id': module_id,
+                        'module_name': module_name
                     }
         
         return announcements
@@ -124,7 +135,8 @@ class PromptAnalyzer:
                 status = '✅ Enabled' if enabled else '❌ Disabled'
                 prompt_type = 'Announcement'
                 # Use the module name from where the announcement was defined
-                module_name = announcement_info['module_name'] or module_name
+                if announcement_info['module_name']:
+                    module_name = announcement_info['module_name']
             else:
                 # For regular prompts, use module connectivity
                 enabled = not is_disconnected
@@ -284,8 +296,17 @@ def main():
         ]
         
         if not prompt_status.empty:
-            # Get the most recent status
-            status = prompt_status.iloc[-1]['Status']  # Use last status if multiple
+            # Get the status - prefer statuses in order: In Use > Enabled > Disabled > Not In Use
+            status_order = {
+                '✅ In Use': 0,
+                '✅ Enabled': 1,
+                '❌ Disabled': 2,
+                '❌ Not In Use': 3
+            }
+            
+            statuses = prompt_status['Status'].unique()
+            status = min(statuses, key=lambda x: status_order.get(x, 4))
+            
             with st.expander(f"{prompt_name} ({status})", expanded=False):
                 create_audio_player(prompt_name)
         else:
